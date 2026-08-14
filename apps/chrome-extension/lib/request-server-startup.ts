@@ -17,6 +17,6 @@ export async function requestServerStartup(signal?: AbortSignal): Promise<void> 
     throw signal.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError");
   }
   if (!response?.ok) {
-    throw new Error(response?.error ?? "Deep Reader Serverの起動要求に失敗しました。");
+    throw new Error(response?.error ?? "Lensmap Serverの起動要求に失敗しました。");
   }
 }

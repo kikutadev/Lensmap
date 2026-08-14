@@ -1,33 +1,45 @@
 import {
-  bookChatResponseSchema,
-  bookChatThreadsResponseSchema,
-  createChatThreadRequestSchema,
+  addWorkspaceBookRequestSchema,
+  addWorkspaceSourceRequestSchema,
   bookSchema,
-  chatTurnStreamEventSchema,
+  exploreTurnStreamEventSchema,
   codexStatusResponseSchema,
+  codexUsageResponseSchema,
+  createExploreThreadRequestSchema,
   createSourceAnchorRequestSchema,
-  insightArtifactDetailSchema,
-  insightListResponseSchema,
-  insightVersionDiffResponseSchema,
-  insightVersionHistoryResponseSchema,
-  updateInsightRequestSchema,
+  createVisualSourceRequestSchema,
+  createWorkspaceRequestSchema,
+  mapArtifactDetailSchema,
+  mapListResponseSchema,
+  mapVersionDiffResponseSchema,
+  mapVersionHistoryResponseSchema,
+  readerWorkspaceSchema,
   resolveSelectionResponseSchema,
   sourceAnchorSchema,
+  updateMapRequestSchema,
+  workspaceExploreResponseSchema,
+  workspaceExploreThreadsResponseSchema,
+  workspaceListResponseSchema,
   type Book,
-  type BookChatResponse,
-  type BookChatThreadsResponse,
-  type CreateChatThreadRequest,
-  type ChatTurnStreamEvent,
+  type ExploreTurnStreamEvent,
   type CodexStatusResponse,
+  type CodexUsageResponse,
+  type CreateExploreThreadRequest,
   type CreateSourceAnchorRequest,
-  type InsightArtifactDetail,
-  type InsightListResponse,
-  type InsightVersionDiffResponse,
-  type InsightVersionHistoryResponse,
-  type UpdateInsightRequest,
+  type CreateVisualSourceRequest,
+  type CreateWorkspaceRequest,
+  type MapArtifactDetail,
+  type MapListResponse,
+  type MapVersionDiffResponse,
+  type MapVersionHistoryResponse,
+  type ReaderWorkspace,
   type ResolveSelectionResponse,
   type SourceAnchor,
-} from "@deep-reader/shared";
+  type UpdateMapRequest,
+  type WorkspaceExploreResponse,
+  type WorkspaceExploreThreadsResponse,
+  type WorkspaceListResponse,
+} from "@lensmap/shared";
 import { clearCapabilityToken, getBookUrlCache, getCapabilityToken, getServerBase, setBookUrlCache } from "./state";
 import { requestServerStartup } from "./request-server-startup";
 
@@ -46,7 +58,7 @@ export async function apiJson<T>(path: string, init: RequestInit | undefined, pa
   if (!response.ok) {
     const message = typeof body === "object" && body !== null && "message" in body
       ? String((body as { message: unknown }).message)
-      : `Deep Reader Server HTTP ${response.status}`;
+      : `Lensmap Server HTTP ${response.status}`;
     throw new Error(message);
   }
   return parse(body);
@@ -54,6 +66,11 @@ export async function apiJson<T>(path: string, init: RequestInit | undefined, pa
 
 export async function fetchCodexStatus(signal?: AbortSignal): Promise<CodexStatusResponse> {
   return apiJson("/codex/status", signal ? { signal } : undefined, (value) => codexStatusResponseSchema.parse(value));
+}
+
+export async function fetchCodexUsage(threadId?: string | null, signal?: AbortSignal): Promise<CodexUsageResponse> {
+  const suffix = threadId ? `?threadId=${encodeURIComponent(threadId)}` : "";
+  return apiJson(`/codex/usage${suffix}`, signal ? { signal } : undefined, (value) => codexUsageResponseSchema.parse(value));
 }
 
 export async function fetchBooks(signal?: AbortSignal): Promise<Book[]> {
@@ -153,38 +170,93 @@ export async function createSource(
   );
 }
 
-export async function fetchBookChat(bookId: string, threadId?: string, signal?: AbortSignal): Promise<BookChatResponse> {
-  const suffix = threadId ? `?threadId=${encodeURIComponent(threadId)}` : "";
-  return apiJson(`/books/${encodeURIComponent(bookId)}/chat${suffix}`, signal ? { signal } : undefined, (value) => bookChatResponseSchema.parse(value));
-}
-
-export async function fetchBookChatThreads(bookId: string, signal?: AbortSignal): Promise<BookChatThreadsResponse> {
-  return apiJson(`/books/${encodeURIComponent(bookId)}/chat/threads`, signal ? { signal } : undefined, (value) => bookChatThreadsResponseSchema.parse(value));
-}
-
-export async function createBookChatThread(bookId: string, input: CreateChatThreadRequest = {}): Promise<BookChatResponse> {
-  const body = createChatThreadRequestSchema.parse(input);
+/** Upload a lossless crop as primary Visual Source evidence; OCR/location metadata may remain unresolved. */
+export async function createVisualSource(
+  bookId: string,
+  metadata: CreateVisualSourceRequest,
+  png: Blob,
+  signal?: AbortSignal,
+): Promise<SourceAnchor> {
+  if (png.type !== "image/png") throw new Error("Visual Source crop must be PNG");
+  const input = createVisualSourceRequestSchema.parse(metadata);
+  const form = new FormData();
+  form.append("metadata", JSON.stringify(input));
+  form.append("file", png, "visual-source.png");
   return apiJson(
-    `/books/${encodeURIComponent(bookId)}/chat/threads`,
-    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
-    (value) => bookChatResponseSchema.parse(value),
+    `/books/${encodeURIComponent(bookId)}/sources/visual`,
+    { method: "POST", body: form, ...(signal ? { signal } : {}) },
+    (value) => sourceAnchorSchema.parse(value),
   );
 }
 
-export async function streamChatTurn(
-  input: { bookId: string; question: string; sourceIds: string[]; threadId?: string | null },
-  onEvent: (event: ChatTurnStreamEvent) => void,
+/** Fetch a managed Visual Source PNG through the authenticated loopback API. */
+export async function fetchVisualSourceAsset(bookId: string, assetId: string, signal?: AbortSignal): Promise<Blob> {
+  const response = await serverFetch(
+    `/books/${encodeURIComponent(bookId)}/sources/assets/${encodeURIComponent(assetId)}`,
+    signal ? { signal } : undefined,
+  );
+  if (!response.ok) throw new Error(`Visual Source image HTTP ${response.status}`);
+  const blob = await response.blob();
+  if (blob.type !== "image/png") throw new Error("Visual Source asset is not a PNG");
+  return blob;
+}
+
+export async function fetchWorkspaces(signal?: AbortSignal): Promise<WorkspaceListResponse> {
+  return apiJson("/workspaces", signal ? { signal } : undefined, (value) => workspaceListResponseSchema.parse(value));
+}
+
+export async function fetchWorkspace(workspaceId: string, signal?: AbortSignal): Promise<ReaderWorkspace> {
+  return apiJson(`/workspaces/${encodeURIComponent(workspaceId)}`, signal ? { signal } : undefined, (value) => readerWorkspaceSchema.parse(value));
+}
+
+export async function createWorkspace(input: CreateWorkspaceRequest = {}): Promise<ReaderWorkspace> {
+  const body = createWorkspaceRequestSchema.parse(input);
+  return apiJson("/workspaces", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, (value) => readerWorkspaceSchema.parse(value));
+}
+
+export async function addWorkspaceBook(workspaceId: string, bookId: string): Promise<ReaderWorkspace> {
+  const body = addWorkspaceBookRequestSchema.parse({ bookId });
+  return apiJson(`/workspaces/${encodeURIComponent(workspaceId)}/books`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, (value) => readerWorkspaceSchema.parse(value));
+}
+
+export async function addWorkspaceSource(workspaceId: string, sourceAnchorId: string): Promise<ReaderWorkspace> {
+  const body = addWorkspaceSourceRequestSchema.parse({ sourceAnchorId });
+  return apiJson(`/workspaces/${encodeURIComponent(workspaceId)}/sources`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, (value) => readerWorkspaceSchema.parse(value));
+}
+
+export async function removeWorkspaceSource(workspaceId: string, sourceAnchorId: string): Promise<ReaderWorkspace> {
+  return apiJson(`/workspaces/${encodeURIComponent(workspaceId)}/sources/${encodeURIComponent(sourceAnchorId)}`, { method: "DELETE" }, (value) => readerWorkspaceSchema.parse(value));
+}
+
+export async function fetchWorkspaceExplore(workspaceId: string, threadId?: string, signal?: AbortSignal): Promise<WorkspaceExploreResponse> {
+  const suffix = threadId ? `?threadId=${encodeURIComponent(threadId)}` : "";
+  return apiJson(`/workspaces/${encodeURIComponent(workspaceId)}/explore${suffix}`, signal ? { signal } : undefined, (value) => workspaceExploreResponseSchema.parse(value));
+}
+
+export async function fetchWorkspaceExploreThreads(workspaceId: string, signal?: AbortSignal): Promise<WorkspaceExploreThreadsResponse> {
+  return apiJson(`/workspaces/${encodeURIComponent(workspaceId)}/explore/threads`, signal ? { signal } : undefined, (value) => workspaceExploreThreadsResponseSchema.parse(value));
+}
+
+export async function createWorkspaceExploreThread(workspaceId: string, input: CreateExploreThreadRequest = {}): Promise<WorkspaceExploreResponse> {
+  const body = createExploreThreadRequestSchema.parse(input);
+  return apiJson(`/workspaces/${encodeURIComponent(workspaceId)}/explore/threads`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, (value) => workspaceExploreResponseSchema.parse(value));
+}
+
+export async function streamExploreTurn(
+  input: { workspaceId: string; question: string; sourceIds: string[]; threadId?: string | null; model?: string | null },
+  onEvent: (event: ExploreTurnStreamEvent) => void,
 ): Promise<void> {
-  const response = await serverFetch(`/books/${encodeURIComponent(input.bookId)}/chat/turns`, {
+  const response = await serverFetch(`/workspaces/${encodeURIComponent(input.workspaceId)}/explore/turns`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       question: input.question,
       sourceIds: input.sourceIds,
       ...(input.threadId ? { threadId: input.threadId } : {}),
+      ...(input.model ? { model: input.model } : {}),
     }),
   });
-  if (!response.ok || !response.body) throw new Error(`Deep Dive HTTP ${response.status}`);
+  if (!response.ok || !response.body) throw new Error(`Explore HTTP ${response.status}`);
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -196,54 +268,37 @@ export async function streamChatTurn(
     buffer = lines.pop() ?? "";
     for (const line of lines) {
       if (!line.trim()) continue;
-      onEvent(chatTurnStreamEventSchema.parse(JSON.parse(line)));
+      onEvent(exploreTurnStreamEventSchema.parse(JSON.parse(line)));
     }
     if (done) break;
   }
-  if (buffer.trim()) onEvent(chatTurnStreamEventSchema.parse(JSON.parse(buffer)));
+  if (buffer.trim()) onEvent(exploreTurnStreamEventSchema.parse(JSON.parse(buffer)));
 }
 
-export async function fetchInsights(bookId: string, signal?: AbortSignal): Promise<InsightListResponse> {
-  return apiJson(`/insights?bookId=${encodeURIComponent(bookId)}`, signal ? { signal } : undefined, (value) => insightListResponseSchema.parse(value));
+export async function fetchMaps(workspaceId: string, signal?: AbortSignal): Promise<MapListResponse> {
+  return apiJson(`/maps?workspaceId=${encodeURIComponent(workspaceId)}`, signal ? { signal } : undefined, (value) => mapListResponseSchema.parse(value));
 }
 
-export async function fetchInsightDetail(artifactId: string, signal?: AbortSignal): Promise<InsightArtifactDetail> {
-  return apiJson(`/insights/${encodeURIComponent(artifactId)}`, signal ? { signal } : undefined, (value) => insightArtifactDetailSchema.parse(value));
+export async function fetchMapDetail(mapArtifactId: string, signal?: AbortSignal): Promise<MapArtifactDetail> {
+  return apiJson(`/maps/${encodeURIComponent(mapArtifactId)}`, signal ? { signal } : undefined, (value) => mapArtifactDetailSchema.parse(value));
 }
 
-export async function createInsightFromMessage(messageId: string): Promise<InsightArtifactDetail> {
-  return apiJson(
-    "/insights/from-message",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ messageId }),
-    },
-    (value) => insightArtifactDetailSchema.parse(value),
-  );
+export async function updateMap(mapArtifactId: string, input: UpdateMapRequest): Promise<MapArtifactDetail> {
+  const body = updateMapRequestSchema.parse(input);
+  return apiJson(`/maps/${encodeURIComponent(mapArtifactId)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, (value) => mapArtifactDetailSchema.parse(value));
 }
 
-export async function updateInsight(artifactId: string, input: UpdateInsightRequest): Promise<InsightArtifactDetail> {
-  const body = updateInsightRequestSchema.parse(input);
-  return apiJson(
-    `/insights/${encodeURIComponent(artifactId)}`,
-    { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
-    (value) => insightArtifactDetailSchema.parse(value),
-  );
+export async function fetchMapVersions(mapArtifactId: string, signal?: AbortSignal): Promise<MapVersionHistoryResponse> {
+  return apiJson(`/maps/${encodeURIComponent(mapArtifactId)}/versions`, signal ? { signal } : undefined, (value) => mapVersionHistoryResponseSchema.parse(value));
 }
 
-export async function fetchInsightVersions(artifactId: string, signal?: AbortSignal): Promise<InsightVersionHistoryResponse> {
-  return apiJson(`/insights/${encodeURIComponent(artifactId)}/versions`, signal ? { signal } : undefined, (value) => insightVersionHistoryResponseSchema.parse(value));
+export async function fetchMapVersion(mapArtifactId: string, version: number, signal?: AbortSignal): Promise<MapArtifactDetail> {
+  return apiJson(`/maps/${encodeURIComponent(mapArtifactId)}/versions/${version}`, signal ? { signal } : undefined, (value) => mapArtifactDetailSchema.parse(value));
 }
 
-export async function fetchInsightVersion(artifactId: string, version: number, signal?: AbortSignal): Promise<InsightArtifactDetail> {
-  return apiJson(`/insights/${encodeURIComponent(artifactId)}/versions/${version}`, signal ? { signal } : undefined, (value) => insightArtifactDetailSchema.parse(value));
+export async function fetchMapDiff(mapArtifactId: string, fromVersion: number, toVersion: number, signal?: AbortSignal): Promise<MapVersionDiffResponse> {
+  return apiJson(`/maps/${encodeURIComponent(mapArtifactId)}/diff?from=${fromVersion}&to=${toVersion}`, signal ? { signal } : undefined, (value) => mapVersionDiffResponseSchema.parse(value));
 }
-
-export async function fetchInsightDiff(artifactId: string, fromVersion: number, toVersion: number, signal?: AbortSignal): Promise<InsightVersionDiffResponse> {
-  return apiJson(`/insights/${encodeURIComponent(artifactId)}/diff?from=${fromVersion}&to=${toVersion}`, signal ? { signal } : undefined, (value) => insightVersionDiffResponseSchema.parse(value));
-}
-
 
 /** Fetch the loopback API with the session-only capability, refreshing it once after a server restart. */
 async function serverFetch(path: string, init: RequestInit | undefined): Promise<Response> {
@@ -254,7 +309,7 @@ async function serverFetch(path: string, init: RequestInit | undefined): Promise
     await requestServerStartup(signal);
     capabilityToken = await getCapabilityToken();
   }
-  if (!capabilityToken) throw new Error("Deep Reader Serverの接続権限を取得できませんでした");
+  if (!capabilityToken) throw new Error("Lensmap Serverの接続権限を取得できませんでした");
 
   let response = await fetch(`${serverBase}${path}`, withCapability(init, capabilityToken));
   if (response.status !== 401) return response;

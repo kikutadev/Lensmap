@@ -28,12 +28,51 @@ export const modelListResponseSchema = z.object({
     displayName: z.string(),
     description: z.string(),
     hidden: z.boolean(),
+    inputModalities: z.array(z.enum(["text", "image", "audio"])).default(["text"]),
     defaultReasoningEffort: z.string(),
     isDefault: z.boolean(),
   }).passthrough()),
   nextCursor: z.string().nullable(),
 });
 
+export const rateLimitWindowSchema = z.object({
+  usedPercent: z.number().int(),
+  resetsAt: z.number().int().nullable(),
+  windowDurationMins: z.number().int().nullable(),
+});
+
+export const rateLimitSnapshotSchema = z.object({
+  limitId: z.string().nullable().optional(),
+  limitName: z.string().nullable().optional(),
+  primary: rateLimitWindowSchema.nullable().optional(),
+  secondary: rateLimitWindowSchema.nullable().optional(),
+}).passthrough();
+
+export const getAccountRateLimitsResponseSchema = z.object({
+  rateLimits: rateLimitSnapshotSchema,
+  rateLimitsByLimitId: z.record(z.string(), rateLimitSnapshotSchema).nullable().optional(),
+}).passthrough();
+
+export const tokenUsageBreakdownSchema = z.object({
+  inputTokens: z.number().int().nonnegative(),
+  cachedInputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  reasoningOutputTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  cacheWriteInputTokens: z.number().int().nonnegative().default(0),
+});
+
+export const threadTokenUsageSchema = z.object({
+  last: tokenUsageBreakdownSchema,
+  total: tokenUsageBreakdownSchema,
+  modelContextWindow: z.number().int().positive().nullable().optional(),
+});
+
+export const threadTokenUsageUpdatedParamsSchema = z.object({
+  threadId: z.string(),
+  turnId: z.string(),
+  tokenUsage: threadTokenUsageSchema,
+});
 
 const threadSummarySchema = z.object({
   id: z.string(),
@@ -91,6 +130,9 @@ export type ConfigReadResponse = z.infer<typeof configReadResponseSchema>;
 export type InitializeResponse = z.infer<typeof initializeResponseSchema>;
 export type GetAccountResponse = z.infer<typeof getAccountResponseSchema>;
 export type ModelListResponse = z.infer<typeof modelListResponseSchema>;
+export type GetAccountRateLimitsResponse = z.infer<typeof getAccountRateLimitsResponseSchema>;
+export type ThreadTokenUsage = z.infer<typeof threadTokenUsageSchema>;
+export type ThreadTokenUsageUpdatedParams = z.infer<typeof threadTokenUsageUpdatedParamsSchema>;
 export type ThreadStartResponse = z.infer<typeof threadStartResponseSchema>;
 export type ThreadResumeResponse = z.infer<typeof threadResumeResponseSchema>;
 export type TurnStartResponse = z.infer<typeof turnStartResponseSchema>;

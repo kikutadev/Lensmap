@@ -3,8 +3,8 @@ import { platform } from "node:os";
 
 /** Resolve a real installed Chrome first so Puppeteer E2E does not depend on a separate browser cache. */
 export function resolveChromeExecutable() {
-  if (process.env.DEEP_READER_CHROME_BIN && existsSync(process.env.DEEP_READER_CHROME_BIN)) {
-    return process.env.DEEP_READER_CHROME_BIN;
+  if (process.env.LENSMAP_CHROME_BIN && existsSync(process.env.LENSMAP_CHROME_BIN)) {
+    return process.env.LENSMAP_CHROME_BIN;
   }
 
   const candidates = platform() === "darwin"
@@ -25,11 +25,11 @@ export function resolveChromeExecutable() {
 
 /**
  * Launch production Chrome extension E2E in unified Chrome Headless by default.
- * Set DEEP_READER_E2E_HEADLESS=0 only for an explicit visual/manual diagnostic run.
+ * Set LENSMAP_E2E_HEADLESS=0 only for an explicit visual/manual diagnostic run.
  */
 export function extensionLaunchOptions(extensionPath, extraArgs = []) {
   const executablePath = resolveChromeExecutable();
-  const headless = process.env.DEEP_READER_E2E_HEADLESS !== "0";
+  const headless = process.env.LENSMAP_E2E_HEADLESS !== "0";
   return {
     headless,
     pipe: true,

@@ -1,9 +1,9 @@
-import type { BookSearchResponse, DocumentBlock, SourceAnchor } from "@deep-reader/shared";
+import type { BookSearchResponse, DocumentBlock, TextSourceAnchor } from "@lensmap/shared";
 import type { SourceAnchorService } from "../sources/source-anchor-service.js";
 import type { DocumentIndexService } from "./document-index-service.js";
 
 export interface MaterializedBookSource {
-  source: SourceAnchor;
+  source: TextSourceAnchor;
   blockId: string;
   reason: "read-block" | "nearby" | "section";
 }
@@ -89,6 +89,7 @@ export class BookContextGateway {
     const source = this.sourceAnchorService.getById(sourceAnchorId);
     if (!source) throw new Error("SourceAnchor not found");
     if (source.bookId !== bookId) throw new Error("SourceAnchor belongs to another book");
+    if (source.kind !== "text") throw new Error("Visual Source cannot be expanded as text context");
 
     const boundedBefore = Math.min(Math.max(before, 0), 4);
     const boundedAfter = Math.min(Math.max(after, 0), 4);
@@ -131,7 +132,7 @@ export class BookContextGateway {
     })));
   }
 
-  private async locateSourceBlock(source: SourceAnchor, blocks: DocumentBlock[]): Promise<number | null> {
+  private async locateSourceBlock(source: TextSourceAnchor, blocks: DocumentBlock[]): Promise<number | null> {
     const directIds = new Set(source.documentNodeIds);
     const directIndex = blocks.findIndex((block) => directIds.has(block.id));
     if (directIndex >= 0) return directIndex;
@@ -167,7 +168,7 @@ export class BookContextGateway {
 
   private async fallbackNearbyPages(
     bookId: string,
-    source: SourceAnchor,
+    source: TextSourceAnchor,
     before: number,
     after: number,
   ): Promise<MaterializedBookSource[]> {
@@ -192,7 +193,7 @@ export class BookContextGateway {
     })));
   }
 
-  private async materializeBlock(bookId: string, block: DocumentBlock): Promise<SourceAnchor> {
+  private async materializeBlock(bookId: string, block: DocumentBlock): Promise<TextSourceAnchor> {
     const page = await this.documentIndexService.getPage(bookId, block.pageIndex);
     return this.sourceAnchorService.createAiExpansion({
       bookId,

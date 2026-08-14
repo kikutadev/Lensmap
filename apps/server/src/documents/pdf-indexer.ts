@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
-import { normalizePdfText, type DocumentBlockKind, type DocumentOutlineItem, type PdfRect } from "@deep-reader/shared";
+import { normalizePdfText, type DocumentBlockKind, type DocumentOutlineItem, type PdfRect } from "@lensmap/shared";
 import { getDocument, type PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { IndexedBlockInput, IndexedPageInput } from "./document-repository.js";
 

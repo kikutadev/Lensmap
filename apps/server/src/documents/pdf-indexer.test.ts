@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe("parsePdfForIndex", () => {
   it("extracts searchable text and conservative blocks from a text PDF", async () => {
-    tempDir = mkdtempSync(join(tmpdir(), "deep-reader-pdf-indexer-"));
+    tempDir = mkdtempSync(join(tmpdir(), "lensmap-pdf-indexer-"));
     const path = join(tempDir, "sample.pdf");
     writeFileSync(path, buildSinglePagePdf("BT\n/F1 18 Tf\n72 720 Td\n(Architecture) Tj\n0 -32 Td\n/F1 12 Tf\n(Dependency inversion separates policy from implementation.) Tj\nET"));
     const parsed = await parsePdfForIndex("book-1", path);
@@ -24,7 +24,7 @@ describe("parsePdfForIndex", () => {
   });
 
   it("reconstructs two-column reading order from coordinates instead of content-stream order", async () => {
-    tempDir = mkdtempSync(join(tmpdir(), "deep-reader-pdf-indexer-columns-"));
+    tempDir = mkdtempSync(join(tmpdir(), "lensmap-pdf-indexer-columns-"));
     const path = join(tempDir, "columns.pdf");
     const content = [
       "BT", "/F1 12 Tf", "330 700 Td", "(Right column first) Tj", "0 -24 Td", "(Right column second) Tj", "ET",
@@ -38,7 +38,7 @@ describe("parsePdfForIndex", () => {
   });
 
   it("removes repeated header/footer text from semantic content while retaining page body", async () => {
-    tempDir = mkdtempSync(join(tmpdir(), "deep-reader-pdf-indexer-margins-"));
+    tempDir = mkdtempSync(join(tmpdir(), "lensmap-pdf-indexer-margins-"));
     const path = join(tempDir, "margins.pdf");
     writeFileSync(path, buildTwoPagePdf(
       marginPage("First page body explains dependency boundaries."),

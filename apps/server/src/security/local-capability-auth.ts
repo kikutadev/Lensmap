@@ -19,8 +19,8 @@ export function installLocalCapabilityAuth(app: FastifyInstance, expectedToken: 
 
     return reply
       .code(401)
-      .header("www-authenticate", "Bearer realm=\"Deep Reader Local API\"")
-      .send({ message: "Deep Reader local capability token is required" });
+      .header("www-authenticate", "Bearer realm=\"Lensmap Local API\"")
+      .send({ message: "Lensmap local capability token is required" });
   });
 }
 

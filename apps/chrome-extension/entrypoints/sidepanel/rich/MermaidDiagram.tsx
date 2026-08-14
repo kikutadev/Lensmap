@@ -13,7 +13,7 @@ export function MermaidDiagram({ source }: { source: string }) {
     void import("mermaid")
       .then(async ({ default: mermaid }) => {
         mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
-        const id = `deep-reader-extension-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+        const id = `lensmap-extension-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
         const rendered = await mermaid.render(id, source);
         if (!cancelled) setSvg(rendered.svg);
       })

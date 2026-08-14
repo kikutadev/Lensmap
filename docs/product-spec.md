@@ -1,37 +1,66 @@
 # 製品仕様
 
+Status: Accepted / Normative
+
 ## 1. コンセプト
 
-Deep Reader は、Chrome で技術書 PDF を読みながら、**ユーザーがその場で選択した本文を主要根拠として AI に質問する**ローカル読書ツールである。
+Lensmap は、Chrome で技術書 PDF を読みながら、**気になった一節や図表を起点に必要な文脈を掘り、根拠付きの理解を Map として残す**ローカル読書ツールである。
 
-全文を毎回モデルへ投入するのではなく、次の 3 概念を中心にする。
+上位原則は [`concept.md`](concept.md) を正とする。
+
+UI・visual designは [`design-system.md`](design-system.md) と [`ui-and-visualization.md`](ui-and-visualization.md) を規範仕様とする。Apple Human Interface Guidelinesを第一参照とし、Chrome Side Panelの制約へ翻訳して適用する。
 
 ```text
-SourceAnchor   原文の根拠
-Deep Dive      考えるための対話
-Insight        残すための知識成果物
+Workspace       読書テーマ
+Focus / Source  人間が注目した根拠
+Explore         理解を掘る Lens
+MapArtifact     自動的に残る理解の地図
 ```
 
-PDF 表示機能は Chrome 標準 PDF Viewer に委譲する。Deep Reader は Side Panel と Local Server を担当し、独自 PDF Reader は持たない。
+PDF表示はChrome標準PDF Viewerへ委譲する。LensmapはSide PanelとLocal Serverを担当し、独自PDF Readerを持たない。
 
-## 2. PDF と SourceAnchor
+Chrome TabはWorkspaceの所有者ではなく、PDF表示・Focus capture・Evidenceから原文へ戻るための **Document View / Capture Surface** とする。
 
-### 2.1 読書
+## 2. Reader Workspace
 
-- HTTP / HTTPS PDF を Chrome 標準 PDF Viewer で読む
-- `file://` PDF は Chrome の file access 許可が有効な場合に扱う
-- 検索、ズーム、ページ移動、Outline、印刷、ダウンロードは Chrome の機能を利用する
+1 Workspaceに複数PDF / Bookを追加できる。
 
-### 2.2 選択
+```text
+Reader Workspace
+ ├─ Documents
+ │   ├─ Book A
+ │   └─ Book B
+ ├─ References
+ ├─ Explore Threads
+ └─ Maps
+```
 
-ユーザーが PDF 本文を選択し、コンテキストメニューから以下を実行する。
+- Explore Threadは`workspaceId`に属する
+- active tab切替だけではWorkspace / Threadを切り替えない
+- PDF tabを閉じてもWorkspace / Explore / References / Mapsは残る
+- 同じPDFを複数tabで開いても同じBookとして扱う
+- Focusは現在選択中のWorkspaceへ追加する
+- Workspace未選択時は最初のFocus captureで自動作成する
+- WorkspaceとBookはmany-to-manyとする
 
-- `Deep Readerで深掘り`
-- `Deep Readerの引用に追加`
+## 3. Focus / SourceAnchor
 
-Extension は選択文字列と PDF URL を取得し、Local Server が管理する PDF index 上で page / block / rect を再同定する。
+`SourceAnchor` は内部domain名であり、UIでは `参照` / `選択箇所` / `図表` を優先する。
 
-SourceAnchor は少なくとも次を保持する。
+```ts
+type SourceAnchor = TextSourceAnchor | VisualSourceAnchor;
+```
+
+### 3.1 Text Focus
+
+PDF本文を選択し、context menuから次を実行できる。
+
+- `Lensmapで掘り下げる`
+- `Lensmapの参照に追加`
+
+Extensionは選択文字列とPDF URLを取得し、Local ServerのPDF index上でpage / block / rectを再同定する。
+
+Text Sourceは少なくとも次を保持する。
 
 - book ID
 - PDF page range
@@ -42,49 +71,94 @@ SourceAnchor は少なくとも次を保持する。
 - related document node IDs
 - origin (`user-selection` / `ai-expansion`)
 
-同じ文字列が複数箇所に存在し一意に決められない場合は、候補ページを Side Panel に表示してユーザーに選択させる。
+同じ文字列が複数箇所にあり一意に決められない場合は、候補ページと前後文脈を提示してユーザーに選択させる。
 
-### 2.3 引用へ戻る
+### 3.2 Visual Focus
 
-回答・Insight の Source reference を選ぶと、元の Chrome PDF tab を対象ページへ移動する。
+図、表、数式、コード画像、スクリーンショット、複雑なレイアウト等はVisual Sourceとして扱う。
 
-Chrome 標準 Viewer の private DOM/API は製品ロジックから利用しない。初期版で保証するのはページ単位の navigation である。
+- `captureVisibleTab()`で現在のvisible viewportを一時captureする
+- Extension所有のCapture Surface上で矩形選択する
+- 確定時は矩形cropだけをlossless master assetとして保存する
+- crop画像そのものを一次情報とする
+- OCR / page / PDF rect / descriptionは派生metadataとする
+- PDF位置再同定に失敗してもVisual Source自体は有効とする
 
-## 3. Deep Dive
-
-1 Turn に複数 SourceAnchor を添付できる。参照数に意味的な固定上限は設けず、aggregate context budget で制御する。
-
-AI は user-selected Source だけで十分なら追加探索しない。不足する場合のみ、read-only book tools を通じて段階的に参照を広げる。
+位置解決状態:
 
 ```text
-User-selected Source
+unresolved
+page-resolved
+rect-resolved
+```
+
+詳細は [`visual-source-capture.md`](visual-source-capture.md) を参照する。
+
+### 3.3 Evidenceから原文へ戻る
+
+Evidence / citationはBook title / page / quoteまたはthumbnail previewを持つ。
+
+選択時:
+
+1. 同じPDFを開いているChrome tabがあればactivate
+2. なければPDFを新しいtabで開く
+3. pageがresolvedなら`#page=N`へ移動
+
+Chrome標準PDF Viewerのprivate DOM/APIへ依存しないため、rect単位の恒久highlightは保証しない。Visual Sourceが`unresolved`の場合はPDF位置を推測してnavigateしない。
+
+## 4. Explore / Context Expansion
+
+1 Turnに複数SourceAnchorを添付でき、複数BookのText / Visual Sourceを混在できる。参照数に意味的な固定上限は設けず、Context Budgetで制御する。
+
+LensmapのAIは「本を代わりに読む主体」ではなく、Focusへ当てるLensである。明示Sourceを最優先し、質問への理解を改善する意味がある場合だけ文脈を広げる。
+
+```text
+Explicit Sources
   ↓
 Nearby Blocks
   ↓
-Section
+Same Section
   ↓
-Book Search
+Workspace Search
   ↓
-必要な本文だけ取得
+Necessary passages only
 ```
 
-AI が実際に読んだ追加本文だけを `ai-expansion` SourceAnchor として記録する。検索候補を見ただけでは citation source にしない。
+比較、因果、定義、設計意図、章全体との関係、複数概念の統合では、追加探索が有用なら明示Sourceだけで表面的に回答可能でも文脈を広げてよい。
 
-Conversation Summary は会話継続用の圧縮状態であり、citation source にはしない。
+検索候補を見ただけではEvidenceにしない。実際にAIが読んだ本文、または画像入力へ渡したVisual Sourceだけを`ai-expansion` SourceAnchorとして記録する。
 
-## 4. Chat / Thread
+何を検索し、どのBookのどの本文を実際に読んだかはaudit可能にする。
 
-- Book ごとに複数 Deep Dive thread を作成可能
-- user / assistant message と利用 Source をローカル DB に保存
-- Codex thread ID は実行上の識別子として保持
-- 回答 streaming を Side Panel に表示
-- model capacity 等で回答生成が始まる前に限り、利用可能なモデルへの fallback を許容
+Conversation Summaryは会話継続用の圧縮状態であり、Evidenceにはしない。
 
-通常読書モードから shell / file write を許可しない。Codex thread は approval `never`、read-only sandbox、Deep Reader専用 tool surfaceを前提にする。
+## 5. Explore Thread
 
-## 5. PDF index / Retrieval
+- Workspaceごとに複数Explore Threadを作成可能
+- user / assistant messageと利用SourceをローカルDBへ保存
+- Codex thread IDは実行上の識別子として保持
+- 回答streamingをSide Panelへ表示
+- model capacity等で回答生成開始前に限り利用可能modelへのfallbackを許容
 
-PDF import 時に次の 3 層を生成する。
+Codex modelはThread単位のdefaultとする。変更は次Turnから適用し、Explore履歴は維持する。
+
+通常読書モードからshell / file writeを許可しない。Codex threadはapproval `never`、read-only sandbox、Lensmap専用tool surfaceを前提とする。
+
+## 6. Codex Control
+
+Side Panel headerから現在のmodel、Context使用率、rate limitを確認できる。
+
+- model list: installed Codexの`model/list`
+- Context: `thread/tokenUsage/updated` の `totalTokens / modelContextWindow`
+- rate limit: `account/rateLimits/read` の `usedPercent` / reset
+
+推定の「あと何回使えるか」は表示しない。技術情報は主役にせずpopoverへ収める。
+
+Visual Sourceを含むTurnでは`image` input modality対応modelを必須とし、OCR-onlyへ黙って劣化させない。画像対応modelではCodex App Serverの`localImage`入力を利用する。
+
+## 7. PDF Index / Retrieval
+
+PDF import時に次の3層を生成する。
 
 ```text
 Physical
@@ -97,51 +171,60 @@ Retrieval
   local search unit
 ```
 
-PDF の content stream order をそのまま信用せず、座標情報から reading order を復元する。Semantic inference に失敗しても Physical SourceAnchor の作成を妨げない。
+PDF content stream orderをそのまま信用せず、座標情報からreading orderを復元する。Semantic inference失敗時もPhysical SourceAnchor作成を妨げない。
 
-検索は SQLite FTS5 を使用する。
+検索:
 
-- Latin 系: `unicode61` + BM25
-- CJK: `trigram`
-- trigram に適さない短語: normalized substring fallback
+- Latin: SQLite FTS5 `unicode61` + BM25
+- CJK: SQLite FTS5 `trigram`
+- 短語: normalized substring fallback
 
-Embedding / vector search は初期版には含めない。
+Embedding / vector searchは初期版に含めない。
 
-## 6. Insight
+## 8. MapArtifact
 
-チャット回答から長期保存したい内容を `InsightArtifact` として保存する。
+正常に完了したAssistant responseは、ユーザー操作なしで`MapArtifact`として自動保存する。
 
-初期 kind:
+MapArtifactは回答ログのコピーではなく、**理解の構造が見え、単体で再利用できる保存成果物**とする。
 
-- note
-- report
-- table
-- diagram
-- chart
+最低条件:
 
-Insight は immutable version history を持ち、編集時は新versionを作成する。Source provenance は version / block 単位で追跡できる。
+- One idea
+- Structured
+- Visual where useful
+- Grounded
+- Traceable
+- Reusable
+- Versioned
 
-Grounding は次を区別する。
+MapArtifact自体を`note / report / table / diagram / chart`のkindで分類しない。1つのMapはNarrative / Table / Diagram / Chart等のMapBlockを組み合わせる。
 
-```text
-GroundingKind
-  source-backed
-  derived
-  ai-explanation
-
-GroundingStatus
-  references-checked
-  claim-verified
-  modified
-  needs-review
+```ts
+interface MapArtifact {
+  id: string;
+  workspaceId: string;
+  title: string;
+  preview: string;
+  latestVersionId: string;
+  createdAt: string;
+  updatedAt: string;
+}
 ```
 
-ユーザー編集後は元の根拠との意味的一致を自動保証しない。
+- `originTurnId`で冪等化する
+- Map保存失敗は正常なExplore回答を失敗扱いにしない
+- Explore Threadを削除してもMapは保持する
+- Source provenanceをversion / block単位で追跡する
+- 編集は新しいMapVersionを作る
+- MapのBook集合はSource provenanceから導出する
 
-## 7. Visualization
+詳細は [`maps-and-context-retrieval.md`](maps-and-context-retrieval.md) を参照する。
 
-回答・Insight は通常 Markdown に加え、次を表示できる。
+## 9. Map Presentation / Visualization
 
+Explore回答とMapは、内容に応じて次を組み合わせる。
+
+- concise narrative
 - Mermaid
 - comparison
 - flow
@@ -149,38 +232,94 @@ GroundingStatus
 - timeline
 - matrix
 - callout
+- table
 - chart (`bar` / `line` / `scatter`)
 
-任意 JSX / JavaScript / HTML は実行しない。Visualization JSON は Zod allow-list schema で検証する。
+図解に意味がある場合は回答生成時からvisual structureを積極的に含める。ただしdiagramを強制しない。
 
-Chart は `dataNature = source | derived | illustrative` を必須とし、説明用仮想値を実測値のように表示しない。
+任意JSX / JavaScript / HTMLは実行しない。Visualization JSONはZod allow-list schemaで検証する。
 
-## 8. ローカル保存と外部送信
+Chartは`dataNature = source | derived | illustrative`を必須とし、説明用仮想値を実測値のように表示しない。
+
+## 10. Maps UI
+
+Primary navigation:
+
+```text
+Explore | Maps
+```
+
+Maps listはvisual-firstとする。
+
+- visual thumbnail / preview
+- title
+- 2〜3行preview
+- referenced Books / pages
+- updated time
+
+Map detailの優先順:
+
+1. title
+2. primary visual understanding
+3. concise explanation
+4. Evidence
+5. version / edit history
+
+内部block kind、renderer名、`needs-review`等を通常UIの主情報にしない。
+
+## 11. Help / Onboarding
+
+Side Panel右上の`?`から常時Helpへ到達できる。
+
+Help / onboardingはCore Loop順に説明する。
+
+```text
+1. Focus — 一節・図表を選ぶ
+2. Explore — 問いを掘る
+3. Expand — 必要ならAIが文脈を広げる
+4. Map — 理解が自動的に残る
+5. Return — EvidenceからPDFへ戻る
+```
+
+加えて次を扱う。
+
+- 複数PDF Workspace
+- Text / Visual Source
+- AI追加参照
+- Codex Context / rate limit / model selector
+- local PDF権限
+- 現状の制約
+
+## 12. ローカル保存と外部送信
 
 ローカル保存:
 
 - managed PDF copy
 - PDF index
-- SourceAnchor
-- Chat / Thread
-- Insight / versions / provenance
+- Reader Workspace / Workspace-Book relation
+- SourceAnchor / Visual Source assets
+- Explore Threads / Turns
+- MapArtifact / MapVersion / provenance
 
-Codex へ送るもの:
+Codexへ送るもの:
 
 - ユーザー質問
-- user-selected source text
-- 必要に応じて read-only book tools で取得した追加本文
+- user-selected Text Source text
+- Turnへ添付されたVisual Source crop画像
+- Visual SourceのOCR / derived metadata（存在する場合）
+- 必要に応じてread-only Workspace toolsで取得した追加本文
 - bounded conversation memory
 
 詳細は [PRIVACY.md](../PRIVACY.md) を参照する。
 
-## 9. 初期版の対象外
+## 13. 初期版の対象外
 
-- OCR が必要なスキャン PDF
+- スキャンPDF全体をOCRして通常Text indexとして扱う機能（Visual Sourceの選択範囲OCRは対象内）
 - EPUB
 - クラウド同期
 - 複数ユーザー
-- 任意 Web ページの取り込み
-- 外部 Web 検索を citation source として利用する機能
+- 任意Webページ取り込み
+- 外部Web検索をEvidenceとして利用する機能
 - 任意コード実行型Visualization
 - Embedding / vector search
+- 自由Canvas型Map editor

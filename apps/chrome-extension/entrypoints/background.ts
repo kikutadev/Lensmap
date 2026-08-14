@@ -1,15 +1,18 @@
-import type { SelectionResolutionCandidate, SourceAnchor } from "@deep-reader/shared";
+import type { SelectionResolutionCandidate } from "@lensmap/shared";
 import { browser } from "wxt/browser";
-import { createSource, ensureBook, resolveSelection } from "../lib/api";
+import { addWorkspaceBook, addWorkspaceSource, createSource, createWorkspace, ensureBook, fetchWorkspace, resolveSelection } from "../lib/api";
 import { startContextMenuAction } from "../lib/context-menu-flow";
-import { ensureDeepReaderServer } from "../lib/server-startup";
+import { ensureLensmapServer } from "../lib/server-startup";
 import {
-  clearLastAssistant,
+  getActiveWorkspaceId,
+  getBookTabLocation,
   getTabState,
   patchTabState,
   patchTabStateForCapture,
   removeTabState,
   resetTabState,
+  setActiveWorkspaceId,
+  setBookTabLocation,
   setTabState,
   type CaptureSelectionPayload,
 } from "../lib/state";
@@ -19,8 +22,9 @@ import {
   shouldResetForNavigation,
 } from "../lib/tab-state-machine";
 
-const MENU_DIVE = "deep-reader-dive";
-const MENU_ADD = "deep-reader-add";
+const MENU_EXPLORE = "lensmap-explore";
+const MENU_ADD_REFERENCE = "lensmap-add-reference";
+const MENU_CAPTURE_REGION = "lensmap-capture-region";
 const CAPTURE_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface ActiveCapture {
@@ -29,7 +33,17 @@ interface ActiveCapture {
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
+interface PendingVisualCapture {
+  captureId: string;
+  dataUrl: string;
+  originTabId: number;
+  bookId: string;
+  workspaceId: string;
+  timeoutId: ReturnType<typeof setTimeout>;
+}
+
 const activeCaptures = new Map<number, ActiveCapture>();
+const pendingVisualCaptures = new Map<string, PendingVisualCapture>();
 const navigationResetSuppressedUntil = new Map<number, number>();
 let contextMenuSetup: Promise<void> | null = null;
 
@@ -38,7 +52,7 @@ export default defineBackground({
   main() {
     void scheduleContextMenuSetup();
     void browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error: unknown) => {
-      console.warn("Deep Reader: failed to configure side-panel behavior", error);
+      console.warn("Lensmap: failed to configure side-panel behavior", error);
     });
 
     browser.runtime.onInstalled.addListener(() => { void scheduleContextMenuSetup(); });
@@ -52,14 +66,18 @@ export default defineBackground({
     });
 
     browser.contextMenus.onClicked.addListener((info, tab) => {
-      if (info.menuItemId !== MENU_DIVE && info.menuItemId !== MENU_ADD) return;
       if (tab?.id === undefined) return;
+      if (info.menuItemId === MENU_CAPTURE_REGION) {
+        void beginVisualCaptureFromMenu(tab.id).catch((error: unknown) => persistUnhandledCaptureError(tab.id!, error));
+        return;
+      }
+      if (info.menuItemId !== MENU_EXPLORE && info.menuItemId !== MENU_ADD_REFERENCE) return;
 
       const payload: CaptureSelectionPayload = {
         selectionText: info.selectionText?.trim() ?? "",
         pageUrl: info.pageUrl ?? tab.url ?? "",
         tabId: tab.id,
-        focusComposer: info.menuItemId === MENU_DIVE,
+        focusComposer: info.menuItemId === MENU_EXPLORE,
       };
 
       // sidePanel.open() must be invoked directly from this context-menu user gesture.
@@ -72,7 +90,7 @@ export default defineBackground({
 
       void run.panelPromise.catch((error: unknown) => {
         // Capture remains valid even if Chrome refuses to open the panel; toolbar action can still open it later.
-        console.warn("Deep Reader: side panel could not be opened from the context menu", error);
+        console.warn("Lensmap: side panel could not be opened from the context menu", error);
       });
       void run.capturePromise.catch((error: unknown) => {
         void persistUnhandledCaptureError(payload.tabId, error);
@@ -85,7 +103,7 @@ export default defineBackground({
       if (sender.id !== browser.runtime.id) return false;
 
       if (request.type === "ensure-server") {
-        void ensureDeepReaderServer()
+        void ensureLensmapServer()
           .then(() => sendResponse({ ok: true }))
           .catch((error: unknown) => sendResponse({ ok: false, error: toMessage(error) }));
         return true;
@@ -109,7 +127,28 @@ export default defineBackground({
       }
 
       if (request.type === "open-citation") {
-        void openCitation(request.tabId, request.page)
+        void openCitation(request.bookId, request.page)
+          .then(() => sendResponse({ ok: true }))
+          .catch((error: unknown) => sendResponse({ ok: false, error: toMessage(error) }));
+        return true;
+      }
+
+      if (request.type === "begin-visual-capture") {
+        void beginVisualCapture(request.tabId, request.workspaceId)
+          .then((captureId) => sendResponse({ ok: true, captureId }))
+          .catch((error: unknown) => sendResponse({ ok: false, error: toMessage(error) }));
+        return true;
+      }
+
+      if (request.type === "get-visual-capture") {
+        const capture = pendingVisualCaptures.get(request.captureId);
+        if (!capture) sendResponse({ ok: false, error: "Visual Captureは期限切れです。PDFからもう一度開始してください。" });
+        else sendResponse({ ok: true, capture: { captureId: capture.captureId, dataUrl: capture.dataUrl, originTabId: capture.originTabId, bookId: capture.bookId, workspaceId: capture.workspaceId } });
+        return false;
+      }
+
+      if (request.type === "finish-visual-capture") {
+        void finishVisualCapture(request.captureId, sender.tab?.id)
           .then(() => sendResponse({ ok: true }))
           .catch((error: unknown) => sendResponse({ ok: false, error: toMessage(error) }));
         return true;
@@ -137,14 +176,19 @@ function scheduleContextMenuSetup(): Promise<void> {
 async function ensureContextMenus(): Promise<void> {
   await browser.contextMenus.removeAll();
   browser.contextMenus.create({
-    id: MENU_DIVE,
-    title: "Deep Readerで深掘り",
+    id: MENU_EXPLORE,
+    title: "LensmapでExplore",
     contexts: ["selection"],
   });
   browser.contextMenus.create({
-    id: MENU_ADD,
-    title: "Deep Readerの引用に追加",
+    id: MENU_ADD_REFERENCE,
+    title: "Lensmapの参照に追加",
     contexts: ["selection"],
+  });
+  browser.contextMenus.create({
+    id: MENU_CAPTURE_REGION,
+    title: "Lensmapで範囲を選択",
+    contexts: ["page"],
   });
 }
 
@@ -175,7 +219,6 @@ async function beginCapture(payload: CaptureSelectionPayload) {
   try {
     const previous = await getTabState(payload.tabId);
     assertCurrentCapture(payload.tabId, captureId, controller.signal);
-    const documentChanged = previous.pdfUrl !== null && previous.pdfUrl !== pdfUrl;
     const started = createCaptureStartState(previous, {
       pdfUrl,
       selectionText,
@@ -183,15 +226,17 @@ async function beginCapture(payload: CaptureSelectionPayload) {
       captureId,
     });
     await setTabState(payload.tabId, started);
-    if (documentChanged) await clearLastAssistant(payload.tabId);
 
-    await ensureDeepReaderServer(controller.signal);
+    await ensureLensmapServer(controller.signal);
     assertCurrentCapture(payload.tabId, captureId, controller.signal);
     const book = await ensureBook(pdfUrl, controller.signal);
+    const workspaceId = await ensureActiveWorkspaceForBook(book.id, book.title);
+    await setBookTabLocation(book.id, { tabId: payload.tabId, pdfUrl });
     assertCurrentCapture(payload.tabId, captureId, controller.signal);
     const resolving = await patchTabStateForCapture(payload.tabId, captureId, {
       status: "resolving",
       bookId: book.id,
+      workspaceId,
       pdfUrl,
       selectionText,
       error: null,
@@ -207,6 +252,7 @@ async function beginCapture(payload: CaptureSelectionPayload) {
       const ambiguous = await patchTabStateForCapture(payload.tabId, captureId, {
         status: "ambiguous",
         bookId: book.id,
+        workspaceId,
         pdfUrl,
         selectionText,
         resolutionCandidates: resolution.candidates,
@@ -220,6 +266,7 @@ async function beginCapture(payload: CaptureSelectionPayload) {
     return await materializeResolvedCandidate(
       payload.tabId,
       book.id,
+      workspaceId,
       resolution.candidates[0]!,
       { captureId, signal: controller.signal },
     );
@@ -245,40 +292,41 @@ async function beginCapture(payload: CaptureSelectionPayload) {
 
 async function materializeCandidate(tabId: number, candidateIndex: number) {
   const state = await getTabState(tabId);
-  if (!state.bookId) throw new Error("対象PDFがありません");
+  if (!state.bookId || !state.workspaceId) throw new Error("対象WorkspaceまたはPDFがありません");
   const candidate = state.resolutionCandidates[candidateIndex];
   if (!candidate) throw new Error("選択候補が見つかりません");
-  return materializeResolvedCandidate(tabId, state.bookId, candidate);
+  return materializeResolvedCandidate(tabId, state.bookId, state.workspaceId, candidate);
 }
 
 async function materializeResolvedCandidate(
   tabId: number,
   bookId: string,
+  workspaceId: string,
   candidate: SelectionResolutionCandidate,
   capture?: { captureId: string; signal: AbortSignal },
 ) {
   if (capture) assertCurrentCapture(tabId, capture.captureId, capture.signal);
   const state = await getTabState(tabId);
   if (capture && state.captureId !== capture.captureId) throw staleCaptureError();
-  if (state.bookId && state.bookId !== bookId) throw staleCaptureError();
+  if ((state.bookId && state.bookId !== bookId) || (state.workspaceId && state.workspaceId !== workspaceId)) throw staleCaptureError();
 
-  const existing = state.sources.find((source) => sameSource(source, candidate));
-  const source = existing ?? await createSource(
+  const source = await createSource(
     bookId,
     { ...candidate, origin: "user-selection" },
     capture?.signal,
   );
+  await addWorkspaceSource(workspaceId, source.id);
+  await browser.storage.local.set({ "lensmap.workspaceRevision": Date.now() });
   if (capture) assertCurrentCapture(tabId, capture.captureId, capture.signal);
 
   const latest = await getTabState(tabId);
   if (capture && latest.captureId !== capture.captureId) throw staleCaptureError();
-  if (latest.bookId && latest.bookId !== bookId) throw staleCaptureError();
-  const sources = dedupeSources([...latest.sources, source]);
+  if ((latest.bookId && latest.bookId !== bookId) || (latest.workspaceId && latest.workspaceId !== workspaceId)) throw staleCaptureError();
   const patch = {
     status: "ready" as const,
     error: null,
     bookId,
-    sources,
+    workspaceId,
     resolutionCandidates: [],
     capturedAt: new Date().toISOString(),
     captureId: null,
@@ -365,22 +413,99 @@ function captureErrorMessage(error: unknown, signal: AbortSignal): string {
   return toMessage(error);
 }
 
-async function openCitation(tabId: number, page: number): Promise<void> {
+async function beginVisualCaptureFromMenu(tabId: number): Promise<string> {
   const state = await getTabState(tabId);
-  if (!state.pdfUrl) throw new Error("PDF URLがありません");
-  const url = new URL(state.pdfUrl);
+  if (!state.bookId) throw new Error("先にテキスト選択等でPDFをLensmapへ認識させてください");
+  let workspaceId = await getActiveWorkspaceId();
+  if (!workspaceId) {
+    const workspace = await createWorkspace({ bookId: state.bookId });
+    workspaceId = workspace.id;
+    await setActiveWorkspaceId(workspaceId);
+  }
+  return beginVisualCapture(tabId, workspaceId);
+}
+
+async function beginVisualCapture(tabId: number, workspaceId: string): Promise<string> {
+  const state = await getTabState(tabId);
+  if (!state.bookId || !state.pdfUrl) throw new Error("Visual CaptureはLensmapで認識済みのPDFタブから開始してください");
+  const tab = await browser.tabs.get(tabId);
+  if (tab.windowId === undefined) throw new Error("PDFタブのWindowを特定できませんでした");
+  const workspace = await fetchWorkspace(workspaceId);
+  if (!workspace.books.some((book) => book.id === state.bookId)) await addWorkspaceBook(workspaceId, state.bookId);
+  const dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+  if (!dataUrl.startsWith("data:image/png")) throw new Error("表示中PDFのPNG Captureに失敗しました");
+  const captureId = crypto.randomUUID();
+  const timeoutId = setTimeout(() => clearVisualCapture(captureId), CAPTURE_TIMEOUT_MS);
+  pendingVisualCaptures.set(captureId, { captureId, dataUrl, originTabId: tabId, bookId: state.bookId, workspaceId, timeoutId });
+  try {
+    await browser.tabs.create({
+      url: browser.runtime.getURL(('/visual-capture.html?captureId=' + encodeURIComponent(captureId)) as never),
+      active: true,
+      windowId: tab.windowId,
+    });
+  } catch (error) {
+    clearVisualCapture(captureId);
+    throw error;
+  }
+  return captureId;
+}
+
+async function finishVisualCapture(captureId: string, captureTabId?: number): Promise<void> {
+  const capture = pendingVisualCaptures.get(captureId);
+  if (!capture) return;
+  clearVisualCapture(captureId);
+  try { await browser.tabs.update(capture.originTabId, { active: true }); } catch { /* source PDF tab may have closed */ }
+  if (captureTabId !== undefined && captureTabId !== capture.originTabId) {
+    try { await browser.tabs.remove(captureTabId); } catch { /* capture tab may already be closing */ }
+  }
+}
+
+function clearVisualCapture(captureId: string): void {
+  const capture = pendingVisualCaptures.get(captureId);
+  if (!capture) return;
+  clearTimeout(capture.timeoutId);
+  pendingVisualCaptures.delete(captureId);
+}
+
+async function ensureActiveWorkspaceForBook(bookId: string, bookTitle: string): Promise<string> {
+  const activeId = await getActiveWorkspaceId();
+  if (activeId) {
+    try {
+      const workspace = await fetchWorkspace(activeId);
+      if (!workspace.books.some((book) => book.id === bookId)) await addWorkspaceBook(activeId, bookId);
+      return activeId;
+    } catch {
+      // The local data directory may have been reset; create a fresh Workspace below.
+    }
+  }
+  const workspace = await createWorkspace({ name: bookTitle, bookId });
+  await setActiveWorkspaceId(workspace.id);
+  return workspace.id;
+}
+
+async function openCitation(bookId: string, page: number): Promise<void> {
+  const location = await getBookTabLocation(bookId);
+  if (!location) throw new Error("このPDFのURL情報がありません");
+  const url = new URL(location.pdfUrl);
   url.hash = `page=${Math.max(1, Math.floor(page))}`;
   const targetUrl = url.toString();
-  navigationResetSuppressedUntil.set(tabId, Date.now() + 5_000);
-  await browser.tabs.update(tabId, { url: targetUrl, active: true });
+
+  let tabId = location.tabId;
+  try {
+    await browser.tabs.get(tabId);
+    navigationResetSuppressedUntil.set(tabId, Date.now() + 5_000);
+    await browser.tabs.update(tabId, { url: targetUrl, active: true });
+  } catch {
+    const created = await browser.tabs.create({ url: targetUrl, active: true });
+    if (created.id === undefined) throw new Error("PDFタブを開けませんでした");
+    tabId = created.id;
+    await setBookTabLocation(bookId, { tabId, pdfUrl: location.pdfUrl });
+  }
   await waitForOwnCitationNavigation(tabId, targetUrl);
-  // Chrome's built-in PDF viewer applies #page open parameters at document load, not a hash-only navigation.
-  // tabs.update/get/reload themselves do not require the broad `tabs` permission; activeTab covers URL visibility
-  // for the PDF tab while this user-initiated citation navigation is in progress.
   await browser.tabs.reload(tabId);
 }
 
-/** Wait until Chrome has committed our own same-document fragment before reloading the built-in PDF viewer. */
+/** Wait until Chrome has committed our own PDF page fragment before reloading the built-in PDF viewer. */
 async function waitForOwnCitationNavigation(tabId: number, targetUrl: string): Promise<void> {
   const deadline = Date.now() + 5_000;
   let urlWasVisible = false;
@@ -392,26 +517,7 @@ async function waitForOwnCitationNavigation(tabId: number, targetUrl: string): P
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-
-  // If Chrome redacted URL after the activeTab grant was revoked during navigation, the bounded wait above
-  // still gives the fragment navigation time to commit. A visible non-target URL is an actual failure.
   if (urlWasVisible) throw new Error(`PDFページURLへの遷移がタイムアウトしました: ${targetUrl}`);
-}
-
-function sameSource(source: SourceAnchor, candidate: SelectionResolutionCandidate): boolean {
-  return source.pageStart === candidate.pageStart
-    && source.pageEnd === candidate.pageEnd
-    && source.quoteNormalized === candidate.quoteNormalized;
-}
-
-function dedupeSources(sources: SourceAnchor[]): SourceAnchor[] {
-  const seen = new Set<string>();
-  return sources.filter((source) => {
-    const key = `${source.pageStart}:${source.pageEnd}:${source.textHash}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 function toMessage(error: unknown): string {
@@ -422,7 +528,10 @@ function asRuntimeMessage(value: unknown):
   | { type: "ensure-server" }
   | { type: "probe-capture-selection"; payload: CaptureSelectionPayload }
   | { type: "resolve-selection-candidate"; tabId: number; candidateIndex: number }
-  | { type: "open-citation"; tabId: number; page: number }
+  | { type: "open-citation"; bookId: string; page: number }
+  | { type: "begin-visual-capture"; tabId: number; workspaceId: string }
+  | { type: "get-visual-capture"; captureId: string }
+  | { type: "finish-visual-capture"; captureId: string; committed: boolean; sourceId?: string }
   | { type: "cancel-capture"; tabId: number }
   | null {
   if (!value || typeof value !== "object" || !("type" in value)) return null;
@@ -434,8 +543,17 @@ function asRuntimeMessage(value: unknown):
   if (message.type === "resolve-selection-candidate" && Number.isInteger(message.tabId) && Number.isInteger(message.candidateIndex)) {
     return { type: message.type, tabId: Number(message.tabId), candidateIndex: Number(message.candidateIndex) };
   }
-  if (message.type === "open-citation" && Number.isInteger(message.tabId) && Number.isInteger(message.page)) {
-    return { type: message.type, tabId: Number(message.tabId), page: Number(message.page) };
+  if (message.type === "open-citation" && typeof message.bookId === "string" && message.bookId && Number.isInteger(message.page)) {
+    return { type: message.type, bookId: message.bookId, page: Number(message.page) };
+  }
+  if (message.type === "begin-visual-capture" && Number.isInteger(message.tabId) && typeof message.workspaceId === "string" && message.workspaceId) {
+    return { type: message.type, tabId: Number(message.tabId), workspaceId: message.workspaceId };
+  }
+  if (message.type === "get-visual-capture" && typeof message.captureId === "string" && message.captureId) {
+    return { type: message.type, captureId: message.captureId };
+  }
+  if (message.type === "finish-visual-capture" && typeof message.captureId === "string" && message.captureId && typeof message.committed === "boolean") {
+    return { type: message.type, captureId: message.captureId, committed: message.committed, ...(typeof message.sourceId === "string" ? { sourceId: message.sourceId } : {}) };
   }
   if (message.type === "cancel-capture" && Number.isInteger(message.tabId)) {
     return { type: message.type, tabId: Number(message.tabId) };

@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Deep Reader includes or bundles software from the packages listed below in production builds.
+Lensmap includes or bundles software from the packages listed below in production builds.
 This file is generated from the installed production dependency tree by `npm run licenses:generate`.
 The upstream license/notice text is reproduced when the installed package ships it.
 

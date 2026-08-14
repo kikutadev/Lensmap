@@ -1,11 +1,745 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2776e7ef-0ee4-4a89-8be2-409895131b3a",
+  "id": "22a58ae9-378d-4b14-ac59-15a390b42400",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
-    "artifact_block_sources": {
-      "name": "artifact_block_sources",
+    "books": {
+      "name": "books",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "managed_path": {
+          "name": "managed_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "page_count": {
+          "name": "page_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "indexed_at": {
+          "name": "indexed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "books_fingerprint_unique": {
+          "name": "books_fingerprint_unique",
+          "columns": [
+            "fingerprint"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "document_blocks": {
+      "name": "document_blocks",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "book_id": {
+          "name": "book_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "page_index": {
+          "name": "page_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "block_order": {
+          "name": "block_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "text_raw": {
+          "name": "text_raw",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "text_normalized": {
+          "name": "text_normalized",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rects_json": {
+          "name": "rects_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "document_blocks_book_id_books_id_fk": {
+          "name": "document_blocks_book_id_books_id_fk",
+          "tableFrom": "document_blocks",
+          "tableTo": "books",
+          "columnsFrom": [
+            "book_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "document_outline_items": {
+      "name": "document_outline_items",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "book_id": {
+          "name": "book_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "item_order": {
+          "name": "item_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "page_index": {
+          "name": "page_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "depth": {
+          "name": "depth",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "document_outline_items_book_id_books_id_fk": {
+          "name": "document_outline_items_book_id_books_id_fk",
+          "tableFrom": "document_outline_items",
+          "tableTo": "books",
+          "columnsFrom": [
+            "book_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "document_pages": {
+      "name": "document_pages",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "book_id": {
+          "name": "book_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "page_index": {
+          "name": "page_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "printed_page_label": {
+          "name": "printed_page_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "text_raw": {
+          "name": "text_raw",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "text_normalized": {
+          "name": "text_normalized",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "document_pages_book_id_books_id_fk": {
+          "name": "document_pages_book_id_books_id_fk",
+          "tableFrom": "document_pages",
+          "tableTo": "books",
+          "columnsFrom": [
+            "book_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "explore_message_sources": {
+      "name": "explore_message_sources",
+      "columns": {
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_anchor_id": {
+          "name": "source_anchor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_label": {
+          "name": "source_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_order": {
+          "name": "source_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "included_text": {
+          "name": "included_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "was_truncated": {
+          "name": "was_truncated",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "explore_message_sources_message_id_explore_messages_id_fk": {
+          "name": "explore_message_sources_message_id_explore_messages_id_fk",
+          "tableFrom": "explore_message_sources",
+          "tableTo": "explore_messages",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "explore_message_sources_source_anchor_id_source_anchors_id_fk": {
+          "name": "explore_message_sources_source_anchor_id_source_anchors_id_fk",
+          "tableFrom": "explore_message_sources",
+          "tableTo": "source_anchors",
+          "columnsFrom": [
+            "source_anchor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "explore_message_sources_message_id_source_anchor_id_pk": {
+          "columns": [
+            "message_id",
+            "source_anchor_id"
+          ],
+          "name": "explore_message_sources_message_id_source_anchor_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "explore_messages": {
+      "name": "explore_messages",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "thread_id": {
+          "name": "thread_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "codex_turn_id": {
+          "name": "codex_turn_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "explore_messages_thread_id_explore_threads_id_fk": {
+          "name": "explore_messages_thread_id_explore_threads_id_fk",
+          "tableFrom": "explore_messages",
+          "tableTo": "explore_threads",
+          "columnsFrom": [
+            "thread_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "explore_retrieval_events": {
+      "name": "explore_retrieval_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assistant_message_id": {
+          "name": "assistant_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tool_name": {
+          "name": "tool_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "arguments_json": {
+          "name": "arguments_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "result_summary_json": {
+          "name": "result_summary_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "explore_retrieval_events_assistant_message_id_explore_messages_id_fk": {
+          "name": "explore_retrieval_events_assistant_message_id_explore_messages_id_fk",
+          "tableFrom": "explore_retrieval_events",
+          "tableTo": "explore_messages",
+          "columnsFrom": [
+            "assistant_message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "explore_threads": {
+      "name": "explore_threads",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "origin_book_id": {
+          "name": "origin_book_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "codex_thread_id": {
+          "name": "codex_thread_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "context_tools_version": {
+          "name": "context_tools_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'Deep Dive'"
+        },
+        "conversation_summary": {
+          "name": "conversation_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "explore_threads_workspace_id_reader_workspaces_id_fk": {
+          "name": "explore_threads_workspace_id_reader_workspaces_id_fk",
+          "tableFrom": "explore_threads",
+          "tableTo": "reader_workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "explore_threads_origin_book_id_books_id_fk": {
+          "name": "explore_threads_origin_book_id_books_id_fk",
+          "tableFrom": "explore_threads",
+          "tableTo": "books",
+          "columnsFrom": [
+            "origin_book_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "map_artifacts": {
+      "name": "map_artifacts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "preview": {
+          "name": "preview",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tags_json": {
+          "name": "tags_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "map_artifacts_workspace_id_reader_workspaces_id_fk": {
+          "name": "map_artifacts_workspace_id_reader_workspaces_id_fk",
+          "tableFrom": "map_artifacts",
+          "tableTo": "reader_workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "map_block_sources": {
+      "name": "map_block_sources",
       "columns": {
         "block_id": {
           "name": "block_id",
@@ -20,14 +754,21 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "source_label": {
+          "name": "source_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "artifact_block_sources_block_id_artifact_blocks_id_fk": {
-          "name": "artifact_block_sources_block_id_artifact_blocks_id_fk",
-          "tableFrom": "artifact_block_sources",
-          "tableTo": "artifact_blocks",
+        "map_block_sources_block_id_map_blocks_id_fk": {
+          "name": "map_block_sources_block_id_map_blocks_id_fk",
+          "tableFrom": "map_block_sources",
+          "tableTo": "map_blocks",
           "columnsFrom": [
             "block_id"
           ],
@@ -37,9 +778,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "artifact_block_sources_source_anchor_id_source_anchors_id_fk": {
-          "name": "artifact_block_sources_source_anchor_id_source_anchors_id_fk",
-          "tableFrom": "artifact_block_sources",
+        "map_block_sources_source_anchor_id_source_anchors_id_fk": {
+          "name": "map_block_sources_source_anchor_id_source_anchors_id_fk",
+          "tableFrom": "map_block_sources",
           "tableTo": "source_anchors",
           "columnsFrom": [
             "source_anchor_id"
@@ -52,19 +793,19 @@
         }
       },
       "compositePrimaryKeys": {
-        "artifact_block_sources_block_id_source_anchor_id_pk": {
+        "map_block_sources_block_id_source_anchor_id_pk": {
           "columns": [
             "block_id",
             "source_anchor_id"
           ],
-          "name": "artifact_block_sources_block_id_source_anchor_id_pk"
+          "name": "map_block_sources_block_id_source_anchor_id_pk"
         }
       },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "artifact_blocks": {
-      "name": "artifact_blocks",
+    "map_blocks": {
+      "name": "map_blocks",
       "columns": {
         "id": {
           "name": "id",
@@ -118,10 +859,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "artifact_blocks_version_id_artifact_versions_id_fk": {
-          "name": "artifact_blocks_version_id_artifact_versions_id_fk",
-          "tableFrom": "artifact_blocks",
-          "tableTo": "artifact_versions",
+        "map_blocks_version_id_map_versions_id_fk": {
+          "name": "map_blocks_version_id_map_versions_id_fk",
+          "tableFrom": "map_blocks",
+          "tableTo": "map_versions",
           "columnsFrom": [
             "version_id"
           ],
@@ -136,11 +877,57 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "artifact_sources": {
-      "name": "artifact_sources",
+    "map_origin_turns": {
+      "name": "map_origin_turns",
       "columns": {
-        "artifact_id": {
-          "name": "artifact_id",
+        "map_artifact_id": {
+          "name": "map_artifact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "codex_turn_id": {
+          "name": "codex_turn_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "map_origin_turns_map_artifact_id_map_artifacts_id_fk": {
+          "name": "map_origin_turns_map_artifact_id_map_artifacts_id_fk",
+          "tableFrom": "map_origin_turns",
+          "tableTo": "map_artifacts",
+          "columnsFrom": [
+            "map_artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "map_origin_turns_map_artifact_id_codex_turn_id_pk": {
+          "columns": [
+            "map_artifact_id",
+            "codex_turn_id"
+          ],
+          "name": "map_origin_turns_map_artifact_id_codex_turn_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "map_sources": {
+      "name": "map_sources",
+      "columns": {
+        "map_artifact_id": {
+          "name": "map_artifact_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -156,12 +943,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "artifact_sources_artifact_id_insight_artifacts_id_fk": {
-          "name": "artifact_sources_artifact_id_insight_artifacts_id_fk",
-          "tableFrom": "artifact_sources",
-          "tableTo": "insight_artifacts",
+        "map_sources_map_artifact_id_map_artifacts_id_fk": {
+          "name": "map_sources_map_artifact_id_map_artifacts_id_fk",
+          "tableFrom": "map_sources",
+          "tableTo": "map_artifacts",
           "columnsFrom": [
-            "artifact_id"
+            "map_artifact_id"
           ],
           "columnsTo": [
             "id"
@@ -169,9 +956,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "artifact_sources_source_anchor_id_source_anchors_id_fk": {
-          "name": "artifact_sources_source_anchor_id_source_anchors_id_fk",
-          "tableFrom": "artifact_sources",
+        "map_sources_source_anchor_id_source_anchors_id_fk": {
+          "name": "map_sources_source_anchor_id_source_anchors_id_fk",
+          "tableFrom": "map_sources",
           "tableTo": "source_anchors",
           "columnsFrom": [
             "source_anchor_id"
@@ -184,19 +971,19 @@
         }
       },
       "compositePrimaryKeys": {
-        "artifact_sources_artifact_id_source_anchor_id_pk": {
+        "map_sources_map_artifact_id_source_anchor_id_pk": {
           "columns": [
-            "artifact_id",
+            "map_artifact_id",
             "source_anchor_id"
           ],
-          "name": "artifact_sources_artifact_id_source_anchor_id_pk"
+          "name": "map_sources_map_artifact_id_source_anchor_id_pk"
         }
       },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "artifact_versions": {
-      "name": "artifact_versions",
+    "map_versions": {
+      "name": "map_versions",
       "columns": {
         "id": {
           "name": "id",
@@ -205,8 +992,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "artifact_id": {
-          "name": "artifact_id",
+        "map_artifact_id": {
+          "name": "map_artifact_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -219,6 +1006,21 @@
           "notNull": true,
           "autoincrement": false
         },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "concise_explanation": {
+          "name": "concise_explanation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -229,12 +1031,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "artifact_versions_artifact_id_insight_artifacts_id_fk": {
-          "name": "artifact_versions_artifact_id_insight_artifacts_id_fk",
-          "tableFrom": "artifact_versions",
-          "tableTo": "insight_artifacts",
+        "map_versions_map_artifact_id_map_artifacts_id_fk": {
+          "name": "map_versions_map_artifact_id_map_artifacts_id_fk",
+          "tableFrom": "map_versions",
+          "tableTo": "map_artifacts",
           "columnsFrom": [
-            "artifact_id"
+            "map_artifact_id"
           ],
           "columnsTo": [
             "id"
@@ -247,8 +1049,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "books": {
-      "name": "books",
+    "reader_workspaces": {
+      "name": "reader_workspaces",
       "columns": {
         "id": {
           "name": "id",
@@ -257,96 +1059,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "fingerprint": {
-          "name": "fingerprint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_name": {
-          "name": "file_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "managed_path": {
-          "name": "managed_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "page_count": {
-          "name": "page_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "books_fingerprint_unique": {
-          "name": "books_fingerprint_unique",
-          "columns": [
-            "fingerprint"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "insight_artifacts": {
-      "name": "insight_artifacts",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_by": {
-          "name": "created_by",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -390,6 +1104,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'text'"
+        },
         "page_start": {
           "name": "page_start",
           "type": "integer",
@@ -402,6 +1124,20 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "printed_page_label_start": {
+          "name": "printed_page_label_start",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "printed_page_label_end": {
+          "name": "printed_page_label_end",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "quote_raw": {
@@ -446,12 +1182,90 @@
           "notNull": true,
           "autoincrement": false
         },
+        "image_asset_id": {
+          "name": "image_asset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "capture_image_width_px": {
+          "name": "capture_image_width_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "capture_image_height_px": {
+          "name": "capture_image_height_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "capture_rect_normalized_json": {
+          "name": "capture_rect_normalized_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "location_status": {
+          "name": "location_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "visual_page": {
+          "name": "visual_page",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "page_rect_normalized_json": {
+          "name": "page_rect_normalized_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "location_confidence_micros": {
+          "name": "location_confidence_micros",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "recognized_text": {
+          "name": "recognized_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ocr_confidence_micros": {
+          "name": "ocr_confidence_micros",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "origin": {
           "name": "origin",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "document_node_ids_json": {
+          "name": "document_node_ids_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "created_at": {
           "name": "created_at",
@@ -478,6 +1292,145 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "workspace_books": {
+      "name": "workspace_books",
+      "columns": {
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "book_id": {
+          "name": "book_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "workspace_books_workspace_id_reader_workspaces_id_fk": {
+          "name": "workspace_books_workspace_id_reader_workspaces_id_fk",
+          "tableFrom": "workspace_books",
+          "tableTo": "reader_workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workspace_books_book_id_books_id_fk": {
+          "name": "workspace_books_book_id_books_id_fk",
+          "tableFrom": "workspace_books",
+          "tableTo": "books",
+          "columnsFrom": [
+            "book_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "workspace_books_workspace_id_book_id_pk": {
+          "columns": [
+            "workspace_id",
+            "book_id"
+          ],
+          "name": "workspace_books_workspace_id_book_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "workspace_sources": {
+      "name": "workspace_sources",
+      "columns": {
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_anchor_id": {
+          "name": "source_anchor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_order": {
+          "name": "source_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "workspace_sources_workspace_id_reader_workspaces_id_fk": {
+          "name": "workspace_sources_workspace_id_reader_workspaces_id_fk",
+          "tableFrom": "workspace_sources",
+          "tableTo": "reader_workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workspace_sources_source_anchor_id_source_anchors_id_fk": {
+          "name": "workspace_sources_source_anchor_id_source_anchors_id_fk",
+          "tableFrom": "workspace_sources",
+          "tableTo": "source_anchors",
+          "columnsFrom": [
+            "source_anchor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "workspace_sources_workspace_id_source_anchor_id_pk": {
+          "columns": [
+            "workspace_id",
+            "source_anchor_id"
+          ],
+          "name": "workspace_sources_workspace_id_source_anchor_id_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     }

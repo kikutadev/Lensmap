@@ -1,7 +1,7 @@
 import { browser } from "wxt/browser";
 import { getCapabilityToken, getServerBase, setCapabilityToken } from "./state";
 
-const NATIVE_HOST_NAME = "com.deepreader.launcher";
+const NATIVE_HOST_NAME = "com.lensmap.launcher";
 const HEALTH_CHECK_TIMEOUT_MS = 1_200;
 const SERVER_START_TIMEOUT_MS = 12_000;
 const SERVER_START_POLL_MS = 150;
@@ -16,9 +16,9 @@ interface NativeHostResponse {
 let startPromise: Promise<void> | null = null;
 
 /** Ensure both the local server and the session-only capability needed to access it are available. */
-export async function ensureDeepReaderServer(signal?: AbortSignal): Promise<void> {
+export async function ensureLensmapServer(signal?: AbortSignal): Promise<void> {
   const [healthy, capabilityToken] = await Promise.all([
-    isDeepReaderServerHealthy(signal),
+    isLensmapServerHealthy(signal),
     getCapabilityToken(),
   ]);
   if (healthy && capabilityToken) return;
@@ -33,7 +33,7 @@ export async function ensureDeepReaderServer(signal?: AbortSignal): Promise<void
 }
 
 /** Perform a bounded public health check without triggering local process startup. */
-export async function isDeepReaderServerHealthy(signal?: AbortSignal): Promise<boolean> {
+export async function isLensmapServerHealthy(signal?: AbortSignal): Promise<boolean> {
   const serverBase = await getServerBase();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT_MS);
@@ -67,25 +67,25 @@ async function synchronizeServerCapabilityViaNativeHost(): Promise<void> {
     }) as NativeHostResponse;
   } catch (error: unknown) {
     throw new Error(
-      `Deep Reader Serverを自動起動できません。Native Hostの初回セットアップを確認してください。${formatCause(error)}`,
+      `Lensmap Serverを自動起動できません。Native Hostの初回セットアップを確認してください。${formatCause(error)}`,
     );
   }
 
   if (!response?.ok) {
-    throw new Error(response?.message ?? "Deep Reader Serverの起動要求に失敗しました。");
+    throw new Error(response?.message ?? "Lensmap Serverの起動要求に失敗しました。");
   }
   if (typeof response.capabilityToken !== "string" || response.capabilityToken.length < 32) {
-    throw new Error("Native HostからDeep Reader Serverの接続権限を取得できませんでした。");
+    throw new Error("Native HostからLensmap Serverの接続権限を取得できませんでした。");
   }
   await setCapabilityToken(response.capabilityToken);
 
   const deadline = Date.now() + SERVER_START_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (await isDeepReaderServerHealthy()) return;
+    if (await isLensmapServerHealthy()) return;
     await delay(SERVER_START_POLL_MS);
   }
 
-  throw new Error("Deep Reader Serverの起動を要求しましたが、接続可能になるまでにタイムアウトしました。");
+  throw new Error("Lensmap Serverの起動を要求しましたが、接続可能になるまでにタイムアウトしました。");
 }
 
 /** Await a shared startup operation while allowing an individual caller to stop waiting independently. */

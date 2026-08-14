@@ -1,7 +1,8 @@
-import type { ChatMessageSource } from "@deep-reader/shared";
-import { visualizationSchema, type ChartVisualization, type Visualization } from "@deep-reader/visualization";
+import type { ExploreMessageSource } from "@lensmap/shared";
+import { visualizationSchema, type ChartVisualization, type Visualization } from "@lensmap/visualization";
 import { ReactFlow, type Edge, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { SourceReference } from "./SourceReference";
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer,
   Scatter, ScatterChart, Tooltip, XAxis, YAxis,
@@ -9,8 +10,8 @@ import {
 
 interface Props {
   json: string;
-  sources: ChatMessageSource[];
-  onOpenSource: (source: ChatMessageSource) => void;
+  sources: ExploreMessageSource[];
+  onOpenSource: (source: ExploreMessageSource) => void;
 }
 
 /** Parse model JSON through the allow-listed Visualization DSL before rendering any React visualization. */
@@ -34,7 +35,7 @@ export function VisualizationBlock({ json, sources, onOpenSource }: Props) {
         <div className="citation-row">
           {parsed.data.sourceRefs.flatMap((label) => {
             const source = sourceByLabel.get(label);
-            return source ? [<button key={`${label}-${source.sourceAnchorId}`} onClick={() => onOpenSource(source)}>{label} · PDF p.{source.pageStart + 1}</button>] : [];
+            return source ? [<SourceReference key={`${label}-${source.sourceAnchorId}`} source={source} onOpen={onOpenSource} variant="chip" />] : [];
           })}
         </div>
       ) : null}

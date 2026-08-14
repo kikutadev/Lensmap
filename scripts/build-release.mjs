@@ -25,7 +25,7 @@ const serverPackage = readJson(resolve(root, "apps/server/package.json"));
 const nodeVersion = readFileSync(resolve(root, ".node-version"), "utf8").trim();
 const releaseVersion = String(rootPackage.version);
 const target = "macos-arm64";
-const bundleName = `DeepReader-${releaseVersion}-${target}`;
+const bundleName = `Lensmap-${releaseVersion}-${target}`;
 const outputDir = resolve(root, "release-dist");
 const cacheDir = resolve(root, ".release-cache");
 const bundleDir = resolve(outputDir, bundleName);
@@ -44,6 +44,7 @@ async function main() {
   assertVersionsAligned();
 
   if (!skipCheck) runNpm(["run", "check"]);
+  else runNpm(["run", "build:native"]);
 
   rmSync(outputDir, { recursive: true, force: true });
   mkdirSync(bundleDir, { recursive: true });
@@ -90,7 +91,7 @@ function copyPublicMetadata() {
   for (const name of ["README.md", "LICENSE", "PRIVACY.md", "SECURITY.md", "THIRD_PARTY_NOTICES.md"]) {
     copyFileOrDirectory(resolve(root, name), resolve(bundleDir, name));
   }
-  copyFileOrDirectory(resolve(root, "assets/release/deep-reader-icon-512.png"), resolve(bundleDir, "deep-reader-icon-512.png"));
+  copyFileOrDirectory(resolve(root, "assets/release/lensmap-icon-512.png"), resolve(bundleDir, "lensmap-icon-512.png"));
   for (const command of ["install.command", "uninstall.command", "status.command"]) {
     copyFileOrDirectory(resolve(root, "packaging/macos", command), resolve(bundleDir, command));
   }
@@ -101,9 +102,10 @@ function copyApplicationPayload() {
     ["apps/server/dist", "apps/server/dist"],
     ["apps/server/drizzle", "apps/server/drizzle"],
     ["apps/chrome-extension/.output/chrome-mv3", "apps/chrome-extension/.output/chrome-mv3"],
-    ["scripts/deep-reader-server.mjs", "scripts/deep-reader-server.mjs"],
-    ["scripts/deep-reader-native-host.mjs", "scripts/deep-reader-native-host.mjs"],
+    ["scripts/lensmap-server.mjs", "scripts/lensmap-server.mjs"],
+    ["scripts/lensmap-native-host.mjs", "scripts/lensmap-native-host.mjs"],
     ["scripts/native-host-manager.mjs", "scripts/native-host-manager.mjs"],
+    ["native/macos/bin/lensmap-ocr", "native/macos/bin/lensmap-ocr"],
   ];
   for (const [source, destination] of required) {
     const sourcePath = resolve(root, source);
@@ -113,7 +115,7 @@ function copyApplicationPayload() {
 
   for (const workspace of ["shared", "visualization"]) {
     const sourceRoot = resolve(root, "packages", workspace);
-    const destinationRoot = resolve(bundleDir, "node_modules/@deep-reader", workspace);
+    const destinationRoot = resolve(bundleDir, "node_modules/@lensmap", workspace);
     mkdirSync(destinationRoot, { recursive: true });
     copyFileOrDirectory(resolve(sourceRoot, "package.json"), resolve(destinationRoot, "package.json"));
     copyFileOrDirectory(resolve(sourceRoot, "dist"), resolve(destinationRoot, "dist"));
@@ -123,7 +125,7 @@ function copyApplicationPayload() {
 /** Copy only the production dependency closure needed by the Local Server, not the development monorepo. */
 function copyServerRuntimeDependencies() {
   const listing = runNpm([
-    "ls", "--omit=dev", "--all", "--parseable", "--workspace", "@deep-reader/server",
+    "ls", "--omit=dev", "--all", "--parseable", "--workspace", "@lensmap/server",
   ], { capture: true });
   const rootNodeModules = resolve(root, "node_modules");
   const dependencyPaths = listing.split("\n").map((value) => value.trim()).filter(Boolean);
@@ -133,7 +135,7 @@ function copyServerRuntimeDependencies() {
     if (!dependencyPath.startsWith(`${rootNodeModules}/`)) continue;
     const dependencyRelative = relative(rootNodeModules, dependencyPath);
     if (!isTopLevelNodeModulePath(dependencyRelative)) continue;
-    if (dependencyRelative.startsWith("@deep-reader/")) continue;
+    if (dependencyRelative.startsWith("@lensmap/")) continue;
     if (copied.has(dependencyRelative)) continue;
 
     copyFileOrDirectory(dependencyPath, resolve(bundleDir, "node_modules", dependencyRelative));
@@ -182,14 +184,14 @@ async function installBundledNodeRuntime() {
 function writeReleaseManifest() {
   const manifest = readJson(resolve(bundleDir, "apps/chrome-extension/.output/chrome-mv3/manifest.json"));
   const release = {
-    name: "Deep Reader",
+    name: "Lensmap",
     version: releaseVersion,
     target,
     nodeVersion,
     chromeMinimumVersion: manifest.minimum_chrome_version ?? null,
     builtAt: new Date().toISOString(),
-    dataDirectory: "~/Library/Application Support/DeepReader/data",
-    installDirectory: "~/Library/Application Support/DeepReader/app",
+    dataDirectory: "~/Library/Application Support/Lensmap/data",
+    installDirectory: "~/Library/Application Support/Lensmap/app",
   };
   writeFileSync(resolve(bundleDir, "release.json"), `${JSON.stringify(release, null, 2)}\n`, "utf8");
 }
@@ -198,20 +200,21 @@ function makeCommandsExecutable() {
   for (const name of ["install.command", "uninstall.command", "status.command"]) {
     chmodSync(resolve(bundleDir, name), 0o755);
   }
+  chmodSync(resolve(bundleDir, "native/macos/bin/lensmap-ocr"), 0o755);
 }
 
 /** Start and stop the packaged server with the bundled Node runtime to catch missing native/runtime files. */
 function selfTestBundle() {
   const bundledNode = resolve(bundleDir, "runtime/node/bin/node");
-  const controller = resolve(bundleDir, "scripts/deep-reader-server.mjs");
+  const controller = resolve(bundleDir, "scripts/lensmap-server.mjs");
   const testData = resolve(bundleDir, ".selftest-data");
   const testRuntime = resolve(bundleDir, ".selftest-runtime");
   const port = String(45_000 + Math.floor(Math.random() * 5_000));
   const env = {
     ...process.env,
-    DEEP_READER_DATA_DIR: testData,
-    DEEP_READER_RUNTIME_DIR: testRuntime,
-    DEEP_READER_PORT: port,
+    LENSMAP_DATA_DIR: testData,
+    LENSMAP_RUNTIME_DIR: testRuntime,
+    LENSMAP_PORT: port,
   };
 
   try {

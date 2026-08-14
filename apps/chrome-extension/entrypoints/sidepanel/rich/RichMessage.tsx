@@ -1,15 +1,16 @@
-import type { ChatMessageSource } from "@deep-reader/shared";
+import type { ExploreMessageSource } from "@lensmap/shared";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { LazyVisualizationBlock } from "./LazyVisualizationBlock";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { splitRichContent } from "./content-segments";
+import { SourceReference } from "./SourceReference";
 
 export function RichMessage({ markdown, sources, onOpenSource }: {
   markdown: string;
-  sources: ChatMessageSource[];
-  onOpenSource: (source: ChatMessageSource) => void;
+  sources: ExploreMessageSource[];
+  onOpenSource: (source: ExploreMessageSource) => void;
 }) {
   return (
     <div className="rich-message">
@@ -24,8 +25,8 @@ export function RichMessage({ markdown, sources, onOpenSource }: {
 
 function MarkdownSegment({ markdown, sources, onOpenSource }: {
   markdown: string;
-  sources: ChatMessageSource[];
-  onOpenSource: (source: ChatMessageSource) => void;
+  sources: ExploreMessageSource[];
+  onOpenSource: (source: ExploreMessageSource) => void;
 }) {
   const byLabel = new Map(sources.map((source) => [source.label, source]));
   const linked = markdown.replace(/\[S(\d+)\]/g, "[S$1](#source-S$1)");
@@ -49,7 +50,7 @@ function MarkdownSegment({ markdown, sources, onOpenSource }: {
           if (label) {
             const source = byLabel.get(label);
             if (!source) return <span className="missing-source">{children}</span>;
-            return <button className="inline-source" type="button" onClick={() => onOpenSource(source)}>{children}</button>;
+            return <SourceReference source={source} onOpen={onOpenSource} />;
           }
           return <a className="rich-link" href={href} target="_blank" rel="noreferrer">{children}</a>;
         },

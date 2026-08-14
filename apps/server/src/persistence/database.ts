@@ -12,7 +12,7 @@ export type DatabaseBundle = ReturnType<typeof createDatabase>;
 /** Open the local SQLite database, apply migrations, and enable durability/safety pragmas. */
 export function createDatabase(config: AppConfig) {
   mkdirSync(config.dataDir, { recursive: true });
-  const sqlite = new Database(join(config.dataDir, "deep-reader.sqlite"));
+  const sqlite = new Database(join(config.dataDir, "lensmap.sqlite"));
   sqlite.pragma("foreign_keys = ON");
   sqlite.pragma("journal_mode = WAL");
 

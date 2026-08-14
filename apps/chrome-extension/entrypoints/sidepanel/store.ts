@@ -1,121 +1,87 @@
-import type { ChatMessage } from "@deep-reader/shared";
 import { create } from "zustand";
-import type { DeepReaderTabState } from "../../lib/state";
+import type { LensmapTabState } from "../../lib/state";
 
 export type StreamStatus = "idle" | "streaming" | "error";
+export type LensmapView = "explore" | "maps";
 
-export interface TabTransientState {
-  documentKey: string | null;
+export interface WorkspaceTransientState {
   streamingContent: string;
   streamStatus: StreamStatus;
   composerDraft: string;
-  selectedInsightId: string | null;
+  selectedMapId: string | null;
   actionError: string | null;
+  modelOverride: string | null;
+  activeThreadId: string | null;
 }
 
 interface SidePanelStore {
   activeTabId: number | null;
-  tabState: DeepReaderTabState | null;
-  lastAssistant: ChatMessage | null;
-  transientByTab: Record<string, TabTransientState>;
-  view: "chat" | "insights";
+  tabState: LensmapTabState | null;
+  activeWorkspaceId: string | null;
+  transientByWorkspace: Record<string, WorkspaceTransientState>;
+  view: LensmapView;
   setActiveTabId: (tabId: number | null) => void;
-  setTabState: (state: DeepReaderTabState | null) => void;
-  setLastAssistant: (message: ChatMessage | null) => void;
-  setStreamState: (tabId: number, status: StreamStatus, content?: string) => void;
-  appendStreamingContent: (tabId: number, delta: string) => void;
-  setComposerDraft: (tabId: number, draft: string) => void;
-  setSelectedInsightId: (tabId: number, id: string | null) => void;
-  setActionError: (tabId: number, error: string | null) => void;
-  setView: (view: "chat" | "insights") => void;
+  setTabState: (state: LensmapTabState | null) => void;
+  setActiveWorkspaceId: (workspaceId: string | null) => void;
+  setStreamState: (workspaceId: string, status: StreamStatus, content?: string) => void;
+  appendStreamingContent: (workspaceId: string, delta: string) => void;
+  setComposerDraft: (workspaceId: string, draft: string) => void;
+  setSelectedMapId: (workspaceId: string, id: string | null) => void;
+  setActionError: (workspaceId: string, error: string | null) => void;
+  setModelOverride: (workspaceId: string, model: string | null) => void;
+  setActiveThreadId: (workspaceId: string, threadId: string | null) => void;
+  setView: (view: LensmapView) => void;
 }
 
-export function emptyTabTransientState(documentKey: string | null = null): TabTransientState {
+export function emptyWorkspaceTransientState(): WorkspaceTransientState {
   return {
-    documentKey,
     streamingContent: "",
     streamStatus: "idle",
     composerDraft: "",
-    selectedInsightId: null,
+    selectedMapId: null,
     actionError: null,
+    modelOverride: null,
+    activeThreadId: null,
   };
 }
 
-function tabKey(tabId: number): string {
-  return String(tabId);
+function currentTransient(state: SidePanelStore, workspaceId: string): WorkspaceTransientState {
+  return state.transientByWorkspace[workspaceId] ?? emptyWorkspaceTransientState();
 }
 
-function currentTransient(state: SidePanelStore, tabId: number): TabTransientState {
-  return state.transientByTab[tabKey(tabId)] ?? emptyTabTransientState();
+function patchWorkspace(
+  state: SidePanelStore,
+  workspaceId: string,
+  patch: Partial<WorkspaceTransientState>,
+): Pick<SidePanelStore, "transientByWorkspace"> {
+  return {
+    transientByWorkspace: {
+      ...state.transientByWorkspace,
+      [workspaceId]: { ...currentTransient(state, workspaceId), ...patch },
+    },
+  };
 }
 
 export const useSidePanelStore = create<SidePanelStore>((set) => ({
   activeTabId: null,
   tabState: null,
-  lastAssistant: null,
-  transientByTab: {},
-  view: "chat",
+  activeWorkspaceId: null,
+  transientByWorkspace: {},
+  view: "explore",
   setActiveTabId: (activeTabId) => set({ activeTabId }),
-  setTabState: (tabState) => set((state) => {
-    if (!tabState) return { tabState };
-    const key = tabKey(tabState.tabId);
-    const existing = state.transientByTab[key];
-    const documentKey = tabState.pdfUrl;
-    const transient = !existing || existing.documentKey !== documentKey
-      ? emptyTabTransientState(documentKey)
-      : existing;
-    return {
-      tabState,
-      transientByTab: { ...state.transientByTab, [key]: transient },
-    };
-  }),
-  setLastAssistant: (lastAssistant) => set({ lastAssistant }),
-  setStreamState: (tabId, streamStatus, content = "") => set((state) => {
-    const key = tabKey(tabId);
-    const current = currentTransient(state, tabId);
-    return {
-      transientByTab: {
-        ...state.transientByTab,
-        [key]: { ...current, streamStatus, streamingContent: content },
-      },
-    };
-  }),
-  appendStreamingContent: (tabId, delta) => set((state) => {
-    const key = tabKey(tabId);
-    const current = currentTransient(state, tabId);
-    return {
-      transientByTab: {
-        ...state.transientByTab,
-        [key]: { ...current, streamingContent: current.streamingContent + delta },
-      },
-    };
-  }),
-  setComposerDraft: (tabId, composerDraft) => set((state) => {
-    const key = tabKey(tabId);
-    return {
-      transientByTab: {
-        ...state.transientByTab,
-        [key]: { ...currentTransient(state, tabId), composerDraft },
-      },
-    };
-  }),
-  setSelectedInsightId: (tabId, selectedInsightId) => set((state) => {
-    const key = tabKey(tabId);
-    return {
-      transientByTab: {
-        ...state.transientByTab,
-        [key]: { ...currentTransient(state, tabId), selectedInsightId },
-      },
-    };
-  }),
-  setActionError: (tabId, actionError) => set((state) => {
-    const key = tabKey(tabId);
-    return {
-      transientByTab: {
-        ...state.transientByTab,
-        [key]: { ...currentTransient(state, tabId), actionError },
-      },
-    };
-  }),
+  setTabState: (tabState) => set({ tabState }),
+  setActiveWorkspaceId: (activeWorkspaceId) => set((state) => ({
+    activeWorkspaceId,
+    transientByWorkspace: activeWorkspaceId && !state.transientByWorkspace[activeWorkspaceId]
+      ? { ...state.transientByWorkspace, [activeWorkspaceId]: emptyWorkspaceTransientState() }
+      : state.transientByWorkspace,
+  })),
+  setStreamState: (workspaceId, streamStatus, streamingContent = "") => set((state) => patchWorkspace(state, workspaceId, { streamStatus, streamingContent })),
+  appendStreamingContent: (workspaceId, delta) => set((state) => patchWorkspace(state, workspaceId, { streamingContent: currentTransient(state, workspaceId).streamingContent + delta })),
+  setComposerDraft: (workspaceId, composerDraft) => set((state) => patchWorkspace(state, workspaceId, { composerDraft })),
+  setSelectedMapId: (workspaceId, selectedMapId) => set((state) => patchWorkspace(state, workspaceId, { selectedMapId })),
+  setActionError: (workspaceId, actionError) => set((state) => patchWorkspace(state, workspaceId, { actionError })),
+  setModelOverride: (workspaceId, modelOverride) => set((state) => patchWorkspace(state, workspaceId, { modelOverride })),
+  setActiveThreadId: (workspaceId, activeThreadId) => set((state) => patchWorkspace(state, workspaceId, { activeThreadId })),
   setView: (view) => set({ view }),
 }));

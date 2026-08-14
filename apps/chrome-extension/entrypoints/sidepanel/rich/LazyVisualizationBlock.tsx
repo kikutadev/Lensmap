@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, type ReactNode } from "react";
-import type { ChatMessageSource } from "@deep-reader/shared";
+import type { ExploreMessageSource } from "@lensmap/shared";
 
 const VisualizationBlock = lazy(async () => {
   const module = await import("./VisualizationBlock");
@@ -8,8 +8,8 @@ const VisualizationBlock = lazy(async () => {
 
 export function LazyVisualizationBlock(props: {
   json: string;
-  sources: ChatMessageSource[];
-  onOpenSource: (source: ChatMessageSource) => void;
+  sources: ExploreMessageSource[];
+  onOpenSource: (source: ExploreMessageSource) => void;
 }) {
   return (
     <VisualizationErrorBoundary json={props.json}>

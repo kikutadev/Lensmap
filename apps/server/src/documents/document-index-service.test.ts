@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 function createTestConfig(): AppConfig {
-  tempDir = mkdtempSync(join(tmpdir(), "deep-reader-document-test-"));
+  tempDir = mkdtempSync(join(tmpdir(), "lensmap-document-test-"));
   return {
     host: "127.0.0.1",
     port: 4317,

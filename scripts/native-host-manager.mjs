@@ -15,16 +15,16 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 
-const HOST_NAME = "com.deepreader.launcher";
+const HOST_NAME = "com.lensmap.launcher";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
 const extensionManifestPath = resolve(projectRoot, "apps/chrome-extension/.output/chrome-mv3/manifest.json");
-const hostScriptPath = resolve(projectRoot, "scripts/deep-reader-native-host.mjs");
-const configuredDataDir = process.env.DEEP_READER_DATA_DIR ? resolve(process.env.DEEP_READER_DATA_DIR) : null;
-const configuredRuntimeDir = process.env.DEEP_READER_RUNTIME_DIR ? resolve(process.env.DEEP_READER_RUNTIME_DIR) : null;
+const hostScriptPath = resolve(projectRoot, "scripts/lensmap-native-host.mjs");
+const configuredDataDir = process.env.LENSMAP_DATA_DIR ? resolve(process.env.LENSMAP_DATA_DIR) : null;
+const configuredRuntimeDir = process.env.LENSMAP_RUNTIME_DIR ? resolve(process.env.LENSMAP_RUNTIME_DIR) : null;
 const configuredCodexBin = process.env.CODEX_BIN ? resolve(process.env.CODEX_BIN) : null;
-const runtimeDir = resolve(homedir(), "Library/Application Support/DeepReader/native-host");
-const wrapperPath = resolve(runtimeDir, "deep-reader-native-host");
+const runtimeDir = resolve(homedir(), "Library/Application Support/Lensmap/native-host");
+const wrapperPath = resolve(runtimeDir, "lensmap-native-host");
 const nativeManifestTargets = [
   {
     browser: "Google Chrome",
@@ -41,7 +41,7 @@ const nativeManifestTargets = [
 const command = process.argv[2] ?? "status";
 
 if (platform() !== "darwin") {
-  throw new Error("Deep Reader Native Host manager currently supports macOS only.");
+  throw new Error("Lensmap Native Host manager currently supports macOS only.");
 }
 
 switch (command) {
@@ -68,9 +68,9 @@ function install() {
 
   const wrapper = [
     "#!/bin/sh",
-    `export DEEP_READER_PROJECT_ROOT=${shellQuote(projectRoot)}`,
-    ...(configuredDataDir ? [`export DEEP_READER_DATA_DIR=${shellQuote(configuredDataDir)}`] : []),
-    ...(configuredRuntimeDir ? [`export DEEP_READER_RUNTIME_DIR=${shellQuote(configuredRuntimeDir)}`] : []),
+    `export LENSMAP_PROJECT_ROOT=${shellQuote(projectRoot)}`,
+    ...(configuredDataDir ? [`export LENSMAP_DATA_DIR=${shellQuote(configuredDataDir)}`] : []),
+    ...(configuredRuntimeDir ? [`export LENSMAP_RUNTIME_DIR=${shellQuote(configuredRuntimeDir)}`] : []),
     ...(configuredCodexBin ? [`export CODEX_BIN=${shellQuote(configuredCodexBin)}`] : []),
     `exec ${shellQuote(process.execPath)} ${shellQuote(hostScriptPath)}`,
     "",
@@ -80,7 +80,7 @@ function install() {
 
   const manifest = {
     name: HOST_NAME,
-    description: "Starts Deep Reader Server on demand from the Deep Reader Chrome extension.",
+    description: "Starts Lensmap Server on demand from the Lensmap Chrome extension.",
     path: wrapperPath,
     type: "stdio",
     allowed_origins: [`chrome-extension://${extensionId}/`],

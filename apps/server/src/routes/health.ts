@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { healthResponseSchema } from "@deep-reader/shared";
+import { healthResponseSchema } from "@lensmap/shared";
 
 interface HealthRouteOptions {
   capabilityRequired: boolean;
@@ -8,7 +8,7 @@ interface HealthRouteOptions {
 export const healthRoutes: FastifyPluginAsync<HealthRouteOptions> = async (app, options) => {
   app.get("/health", async () => healthResponseSchema.parse({
     status: "ok",
-    service: "deep-reader-server",
+    service: "lensmap-server",
     version: "0.1.0",
     capabilityRequired: options.capabilityRequired,
   }));

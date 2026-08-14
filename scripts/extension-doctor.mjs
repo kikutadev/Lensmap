@@ -16,11 +16,11 @@ console.log(JSON.stringify({
   chrome,
   preferredProjectNode: "22.23.2",
   extensionE2EHeadlessDefault: true,
-  headedOverride: "DEEP_READER_E2E_HEADLESS=0",
+  headedOverride: "LENSMAP_E2E_HEADLESS=0",
   e2eNativeNodeFallback: nativeMismatch ? "/opt/homebrew/bin/node (when available)" : null,
-  serverBase: process.env.DEEP_READER_SERVER_BASE ?? "http://127.0.0.1:4317/api",
+  serverBase: process.env.LENSMAP_SERVER_BASE ?? "http://127.0.0.1:4317/api",
 }, null, 2));
 if (!chrome) {
-  console.error("Chrome executable was not found. Set DEEP_READER_CHROME_BIN or install Google Chrome.");
+  console.error("Chrome executable was not found. Set LENSMAP_CHROME_BIN or install Google Chrome.");
   process.exitCode = 1;
 }

@@ -29,7 +29,7 @@ for (const size of extensionSizes) {
   writePng(resolve(extensionDir, `icon-${size}.png`), renderSquare(normalized, size));
 }
 for (const size of releaseSizes) {
-  writePng(resolve(releaseDir, `deep-reader-icon-${size}.png`), renderSquare(normalized, size));
+  writePng(resolve(releaseDir, `lensmap-icon-${size}.png`), renderSquare(normalized, size));
 }
 
 console.log(JSON.stringify({

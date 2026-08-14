@@ -1,16 +1,16 @@
-import type { ChatMessage, SelectionResolutionCandidate, SourceAnchor } from "@deep-reader/shared";
+import type { SelectionResolutionCandidate } from "@lensmap/shared";
 
 export type ExtensionStatus = "idle" | "importing" | "resolving" | "ambiguous" | "ready" | "error";
 
-export interface DeepReaderTabState {
+/** Chrome-tab state is deliberately limited to the current PDF/capture operation. Knowledge state belongs to Reader Workspace. */
+export interface LensmapTabState {
   tabId: number;
   status: ExtensionStatus;
   pdfUrl: string | null;
   bookId: string | null;
+  workspaceId: string | null;
   selectionText: string;
-  sources: SourceAnchor[];
   resolutionCandidates: SelectionResolutionCandidate[];
-  threadId: string | null;
   error: string | null;
   capturedAt: string | null;
   composerFocusRequest: number;
@@ -24,23 +24,21 @@ export interface CaptureSelectionPayload {
   focusComposer?: boolean;
 }
 
-export interface DeepReaderStorageShape {
-  deepReaderTabStates?: Record<string, DeepReaderTabState>;
-  bookByPdfUrl?: Record<string, string>;
-  deepReaderServerBase?: string;
-  lastAssistantByTab?: Record<string, ChatMessage>;
+export interface LensmapStorageShape {
+  "lensmap.serverBase"?: string;
+  "lensmap.bookByPdfUrl"?: Record<string, string>;
+  "lensmap.activeWorkspaceId"?: string;
 }
 
-export function emptyTabState(tabId: number): DeepReaderTabState {
+export function emptyTabState(tabId: number): LensmapTabState {
   return {
     tabId,
     status: "idle",
     pdfUrl: null,
     bookId: null,
+    workspaceId: null,
     selectionText: "",
-    sources: [],
     resolutionCandidates: [],
-    threadId: null,
     error: null,
     capturedAt: null,
     composerFocusRequest: 0,
@@ -55,14 +53,11 @@ export function canonicalDocumentUrl(value: string): string {
   return url.toString();
 }
 
-/**
- * Build the state written synchronously at capture start.
- * A different PDF in the same Chrome tab is treated as a completely new document context.
- */
+/** Begin a new capture while preserving only same-document capture metadata. */
 export function createCaptureStartState(
-  previous: DeepReaderTabState,
+  previous: LensmapTabState,
   input: { pdfUrl: string; selectionText: string; focusComposer: boolean; captureId: string },
-): DeepReaderTabState {
+): LensmapTabState {
   const sameDocument = previous.pdfUrl === input.pdfUrl;
   const base = sameDocument ? previous : emptyTabState(previous.tabId);
   return {
@@ -72,29 +67,17 @@ export function createCaptureStartState(
     pdfUrl: input.pdfUrl,
     selectionText: input.selectionText,
     resolutionCandidates: [],
-    composerFocusRequest: input.focusComposer
-      ? base.composerFocusRequest + 1
-      : base.composerFocusRequest,
+    composerFocusRequest: input.focusComposer ? base.composerFocusRequest + 1 : base.composerFocusRequest,
     captureId: input.captureId,
   };
 }
 
-/** Reset only when navigation leaves the currently managed PDF; #page changes remain the same document. */
-export function shouldResetForNavigation(state: DeepReaderTabState, nextUrl: string): boolean {
+/** Reset capture metadata only when navigation leaves the current PDF; Workspace state is intentionally unaffected. */
+export function shouldResetForNavigation(state: LensmapTabState, nextUrl: string): boolean {
   if (!state.pdfUrl) return false;
-  try {
-    return canonicalDocumentUrl(nextUrl) !== state.pdfUrl;
-  } catch {
-    return true;
-  }
+  try { return canonicalDocumentUrl(nextUrl) !== state.pdfUrl; } catch { return true; }
 }
 
-/** Fill defaults added by newer extension versions when reading older persisted state. */
-export function normalizeTabState(value: DeepReaderTabState, tabId: number): DeepReaderTabState {
-  return {
-    ...emptyTabState(tabId),
-    ...value,
-    tabId,
-    captureId: value.captureId ?? null,
-  };
+export function normalizeTabState(value: LensmapTabState, tabId: number): LensmapTabState {
+  return { ...emptyTabState(tabId), ...value, tabId, captureId: value.captureId ?? null };
 }

@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import type Database from "better-sqlite3";
-import type { DocumentOutlineItem } from "@deep-reader/shared";
+import type { DocumentOutlineItem } from "@lensmap/shared";
 import {
   documentBlockSchema,
   documentPageSchema,
@@ -8,7 +8,7 @@ import {
   type DocumentBlockKind,
   type DocumentPage,
   type PdfRect,
-} from "@deep-reader/shared";
+} from "@lensmap/shared";
 import type { AppDatabase } from "../persistence/database.js";
 import { documentBlocks, documentOutlineItems, documentPages } from "../persistence/schema.js";
 

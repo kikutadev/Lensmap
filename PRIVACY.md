@@ -1,43 +1,45 @@
-# Deep Reader Privacy Policy
+# Lensmap Privacy Policy
 
 Last updated: 2026-08-14
 
-Deep Reader is a local-first tool for reading PDFs and asking grounded questions about selected passages. This document describes the data handled by the open-source Deep Reader software distributed through GitHub.
+Lensmap is a local-first tool for reading PDFs and asking grounded questions about selected text passages and visual regions. This document describes the data handled by the open-source Lensmap software distributed through GitHub.
 
 ## Summary
 
-Deep Reader does not operate a developer-owned cloud backend, analytics service, advertising system, or telemetry pipeline. PDF storage, indexing, chat history, source provenance, and Insight artifacts are stored locally on the user's machine.
+Lensmap does not operate a developer-owned cloud backend, analytics service, advertising system, or telemetry pipeline. PDF storage, indexing, Explore history, source provenance, Visual Source crops, and Map artifacts are stored locally on the user's machine.
 
-When the user asks an AI question, Deep Reader uses the locally installed Codex app-server. The question and the book excerpts needed to answer it are therefore provided to the user's configured Codex/OpenAI service. Deep Reader does not intentionally send the entire PDF to the model merely because the PDF was imported.
+When the user asks an AI question, Lensmap uses the locally installed Codex app-server. The question, selected text excerpts, selected visual crops, and additional source material needed to answer it are therefore provided to the user's configured Codex/OpenAI service. Lensmap does not intentionally send the entire PDF to the model merely because the PDF was imported.
 
 ## Data handled locally
 
-Deep Reader may process and store the following on the user's machine:
+Lensmap may process and store the following on the user's machine:
 
 - imported PDF files;
 - PDF URLs and document identifiers;
 - extracted/indexed PDF text and document structure;
-- selected quotations and source anchors;
+- selected quotations, cropped visual regions, OCR text, and source anchors;
 - locally retrieved surrounding passages or search results;
 - Deep Dive questions and AI responses;
 - conversation summaries and source/citation provenance;
-- saved Insight artifacts, versions, tags, and related metadata;
+- saved Map artifacts, versions, tags, and related metadata;
 - local application logs used for diagnosis;
-- limited Chrome extension state such as the active PDF, selected sources, and recent assistant state.
+- limited Chrome extension state such as the active Reader Workspace, current document metadata, selected sources, and recent assistant state.
 
-The server stores its persistent application data in the configured Deep Reader data directory. The Chrome extension uses `chrome.storage.local` for ordinary extension state. Deep Reader does not use `chrome.storage.sync` for book or chat data.
+The server stores its persistent application data in the configured Lensmap data directory. The Chrome extension uses `chrome.storage.local` for ordinary extension state. Lensmap does not use `chrome.storage.sync` for book or chat data.
 
 ## Data sent for AI processing
 
-When the user starts a Deep Dive, Deep Reader may provide Codex with:
+When the user starts Explore, Lensmap may provide Codex with:
 
 - the user's question;
-- the explicitly selected passages;
+- the explicitly selected text passages;
+- cropped visual regions explicitly attached to the turn;
+- OCR text and derived location metadata for those visual regions when available;
 - a bounded conversation summary when relevant;
-- additional passages retrieved locally from the same book through Deep Reader's read-only book tools when the initial excerpts are insufficient;
+- additional passages or source images retrieved locally from books in the active Reader Workspace through Lensmap's read-only workspace tools when useful for the question;
 - metadata needed to preserve source labels and citations.
 
-The full PDF is indexed locally. Additional book text is sent to the model only when it becomes part of the prompt or a model-requested book-tool result.
+The full PDF is indexed locally. Additional book text or images are sent to the model only when they become part of the prompt or a model-requested workspace-tool result. A full visible-tab capture used for Visual Source selection is temporary; Lensmap keeps the selected crop as the source asset and does not intentionally send the full viewport capture to Codex.
 
 Use of Codex/OpenAI services is governed by the terms and privacy choices applicable to the user's OpenAI account and service. See OpenAI's current policies at:
 
@@ -48,7 +50,7 @@ Use of Codex/OpenAI services is governed by the terms and privacy choices applic
 
 For a web-hosted PDF, the Chrome extension fetches the PDF from the URL the user is currently viewing. The request can use the browser's existing credentials so authenticated PDFs can be read. The operator of that PDF website may therefore receive the normal network information associated with that request under its own policies.
 
-Deep Reader does not send the fetched PDF to a developer-operated server. It is imported into the user's local Deep Reader Server.
+Lensmap does not send the fetched PDF to a developer-operated server. It is imported into the user's local Lensmap Server.
 
 ## Authentication and local capability token
 
@@ -66,24 +68,24 @@ The capability token is not intended to be telemetry, an account identifier, or 
 
 ## Analytics, advertising, and sale of data
 
-The open-source Deep Reader application currently contains no Deep Reader-owned analytics or telemetry integration and no advertising SDK. The project does not sell user data.
+The open-source Lensmap application currently contains no Lensmap-owned analytics or telemetry integration and no advertising SDK. The project does not sell user data.
 
 Third-party services explicitly invoked by the user, including Codex/OpenAI and the website hosting a PDF, operate under their own terms and privacy policies.
 
 ## Retention and deletion
 
-Local PDF, index, chat, and Insight data remain on the user's machine until the corresponding local data is removed. Removing the Chrome extension clears Chrome extension local storage, but does not automatically remove the separate Deep Reader Server data directory.
+Local PDF, index, Explore, Visual Source, and Map data remain on the user's machine until the corresponding local data is removed. Removing the Chrome extension clears Chrome extension local storage, but does not automatically remove the separate Lensmap Server data directory.
 
 The local capability token is session-oriented security material rather than user content; the extension-side copy is cleared when Chrome clears extension session storage, and the runtime token is replaced when the production server starts again.
 
-Any content processed by Codex/OpenAI is subject to the retention and data-control rules applicable to the user's OpenAI service and account; Deep Reader does not control that external retention.
+Any content processed by Codex/OpenAI is subject to the retention and data-control rules applicable to the user's OpenAI service and account; Lensmap does not control that external retention.
 
 ## Network exposure
 
-The production Deep Reader Server is designed to bind to the loopback interface (`127.0.0.1`) rather than a LAN/public interface. Except for the health endpoint, production API requests require the local capability token.
+The production Lensmap Server is designed to bind to the loopback interface (`127.0.0.1`) rather than a LAN/public interface. Except for the health endpoint, production API requests require the local capability token.
 
 Users who modify the source, environment variables, server bind address, or authentication behavior are responsible for the security and privacy implications of those changes.
 
 ## Changes
 
-Material changes to Deep Reader's data flow should be reflected in this file together with the code change that introduces them.
+Material changes to Lensmap's data flow should be reflected in this file together with the code change that introduces them.

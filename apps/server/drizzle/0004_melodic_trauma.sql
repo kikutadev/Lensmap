@@ -1,1 +1,0 @@
-ALTER TABLE `artifact_block_sources` ADD `source_label` text NOT NULL;

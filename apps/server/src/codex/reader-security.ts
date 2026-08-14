@@ -42,7 +42,7 @@ export function extractConfiguredMcpServerNames(config: unknown): string[] {
 
 /**
  * Per-thread defense in depth. All configured MCP servers, Codex apps, and web search are disabled,
- * and the only model-side retrieval path left to Deep Reader is its explicit dynamic `book_*` tool set.
+ * and the only model-side retrieval path left to Lensmap is its explicit dynamic `workspace_*` tool set.
  */
 export function buildReaderThreadConfig(configuredMcpServerNames: string[]): Record<string, unknown> {
   return {

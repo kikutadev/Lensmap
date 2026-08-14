@@ -8,7 +8,7 @@ import {
   type DocumentIndexStatus,
   type ResolveSelectionResponse,
   type SelectionResolutionCandidate,
-} from "@deep-reader/shared";
+} from "@lensmap/shared";
 import type { BookRepository } from "../books/book-repository.js";
 import { DocumentRepository } from "./document-repository.js";
 import { parsePdfForIndex } from "./pdf-indexer.js";

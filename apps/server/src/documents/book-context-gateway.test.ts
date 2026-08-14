@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DocumentBlock, DocumentPage, SourceAnchor } from "@deep-reader/shared";
+import type { DocumentBlock, DocumentPage, TextSourceAnchor } from "@lensmap/shared";
 import type { SourceAnchorService } from "../sources/source-anchor-service.js";
 import type { DocumentIndexService } from "./document-index-service.js";
 import { BookContextGateway } from "./book-context-gateway.js";
@@ -18,8 +18,9 @@ function block(id: string, pageIndex: number, blockOrder: number, text: string):
   };
 }
 
-function anchor(id: string, pageIndex: number, text: string, nodeIds: string[] = []): SourceAnchor {
+function anchor(id: string, pageIndex: number, text: string, nodeIds: string[] = []): TextSourceAnchor {
   return {
+    kind: "text",
     id,
     bookId: "book-1",
     pageStart: pageIndex,

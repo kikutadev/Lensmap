@@ -1,75 +1,48 @@
 import { describe, expect, it } from "vitest";
-import {
-  canonicalDocumentUrl,
-  createCaptureStartState,
-  emptyTabState,
-  shouldResetForNavigation,
-} from "./tab-state-machine";
+import { canonicalDocumentUrl, createCaptureStartState, emptyTabState, shouldResetForNavigation } from "./tab-state-machine";
 
-function sourceStub(id: string) {
-  return {
-    id,
-    bookId: "book-a",
-    pageStart: 0,
-    pageEnd: 0,
-    quoteRaw: "example",
-    quoteNormalized: "example",
-    rects: [],
-    textHash: `hash-${id}`,
-    origin: "user-selection" as const,
-    documentNodeIds: [],
-    createdAt: "2026-08-12T00:00:00.000Z",
-  };
-}
-
-describe("tab state machine", () => {
-  it("preserves book-bound state when capturing another source from the same PDF", () => {
+describe("capture-only tab state machine", () => {
+  it("preserves same-PDF capture metadata without owning Workspace Explore state", () => {
     const previous = {
       ...emptyTabState(7),
       status: "ready" as const,
       pdfUrl: "https://example.com/book.pdf",
       bookId: "book-a",
-      sources: [sourceStub("s1")],
-      threadId: "thread-a",
+      workspaceId: "workspace-a",
       composerFocusRequest: 2,
     };
-
     const next = createCaptureStartState(previous, {
       pdfUrl: "https://example.com/book.pdf",
       selectionText: "next selection",
       focusComposer: true,
       captureId: "capture-2",
     });
-
     expect(next.bookId).toBe("book-a");
-    expect(next.sources).toHaveLength(1);
-    expect(next.threadId).toBe("thread-a");
+    expect(next.workspaceId).toBe("workspace-a");
     expect(next.composerFocusRequest).toBe(3);
     expect(next.captureId).toBe("capture-2");
+    expect("sources" in next).toBe(false);
+    expect("threadId" in next).toBe(false);
   });
 
-  it("fully resets sources and chat when the same Chrome tab changes to another PDF", () => {
+  it("resets only capture metadata when the same Chrome tab changes to another PDF", () => {
     const previous = {
       ...emptyTabState(7),
       status: "ready" as const,
       pdfUrl: "https://example.com/a.pdf",
       bookId: "book-a",
-      sources: [sourceStub("s1")],
-      threadId: "thread-a",
+      workspaceId: "workspace-a",
       composerFocusRequest: 4,
     };
-
     const next = createCaptureStartState(previous, {
       pdfUrl: "https://example.com/b.pdf",
       selectionText: "book B",
       focusComposer: true,
       captureId: "capture-b",
     });
-
     expect(next.pdfUrl).toBe("https://example.com/b.pdf");
     expect(next.bookId).toBeNull();
-    expect(next.sources).toEqual([]);
-    expect(next.threadId).toBeNull();
+    expect(next.workspaceId).toBeNull();
     expect(next.composerFocusRequest).toBe(1);
   });
 

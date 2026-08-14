@@ -9,15 +9,15 @@ import { extensionLaunchOptions } from "./chrome-launch.mjs";
 
 const root = process.cwd();
 const extensionPath = resolve(root, "apps/chrome-extension/.output/chrome-mv3");
-const controllerPath = resolve(root, "scripts/deep-reader-server.mjs");
+const controllerPath = resolve(root, "scripts/lensmap-server.mjs");
 const profilePath = resolve(root, ".runtime/chrome-native-startup-profile");
 const profileNativeHostDir = resolve(profilePath, "NativeMessagingHosts");
 const installedNativeHostManifest = resolve(
   homedir(),
-  "Library/Application Support/Google/ChromeForTesting/NativeMessagingHosts/com.deepreader.launcher.json",
+  "Library/Application Support/Google/ChromeForTesting/NativeMessagingHosts/com.lensmap.launcher.json",
 );
-const profileNativeHostManifest = resolve(profileNativeHostDir, "com.deepreader.launcher.json");
-const nodeBin = process.env.DEEP_READER_SERVER_NODE ?? process.execPath;
+const profileNativeHostManifest = resolve(profileNativeHostDir, "com.lensmap.launcher.json");
+const nodeBin = process.env.LENSMAP_SERVER_NODE ?? process.execPath;
 const expectedExtensionId = "golbkehcbfidgeijhpagmeiomgfedgmo";
 const healthUrl = "http://127.0.0.1:4317/api/health";
 
@@ -25,7 +25,7 @@ const wasRunning = await isHealthy();
 let browser;
 try {
   if (wasRunning) runController("stop");
-  assert.equal(await isHealthy(), false, "Deep Reader Server must be stopped before Native Messaging startup E2E");
+  assert.equal(await isHealthy(), false, "Lensmap Server must be stopped before Native Messaging startup E2E");
 
   // Keep E2E isolated from the user's normal Chrome process. A custom user-data directory means
   // Chrome also resolves user-level Native Messaging hosts from that profile's NativeMessagingHosts directory.
@@ -51,8 +51,8 @@ try {
   const page = await browser.newPage();
   await page.goto(`chrome-extension://${extensionId}/probe.html`);
   const response = await page.evaluate(() => chrome.runtime.sendMessage({ type: "ensure-server" }));
-  assert.equal(response?.ok, true, response?.error ?? "Extension failed to start Deep Reader Server");
-  assert.equal(await waitForHealth(12_000), true, "Deep Reader Server did not become healthy after extension request");
+  assert.equal(response?.ok, true, response?.error ?? "Extension failed to start Lensmap Server");
+  assert.equal(await waitForHealth(12_000), true, "Lensmap Server did not become healthy after extension request");
 
   const secondResponse = await page.evaluate(() => chrome.runtime.sendMessage({ type: "ensure-server" }));
   assert.equal(secondResponse?.ok, true, secondResponse?.error ?? "Second ensure-server call was not idempotent");
@@ -83,7 +83,7 @@ function runController(command) {
   });
   if (result.error) throw result.error;
   if ((result.status ?? 1) !== 0 && command !== "stop") {
-    throw new Error(`Deep Reader Server controller failed: ${command}`);
+    throw new Error(`Lensmap Server controller failed: ${command}`);
   }
 }
 

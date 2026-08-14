@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
@@ -9,11 +9,13 @@ import puppeteer from "puppeteer";
 import { extensionLaunchOptions } from "./chrome-launch.mjs";
 
 const root = process.cwd();
-const extensionPath = resolve(root, "apps/chrome-extension/.output/chrome-mv3");
+const builtExtensionPath = resolve(root, "apps/chrome-extension/.output/chrome-mv3");
+const extensionPath = resolve(root, ".extension-e2e-build");
 const dataDir = resolve(root, ".extension-e2e-data");
 const migrationsDir = resolve(root, "apps/server/drizzle");
 const localPdfPath = resolve(root, ".extension-e2e-local.pdf");
-const nodeBin = process.env.DEEP_READER_SERVER_NODE ?? process.execPath;
+const visualAcceptanceDir = resolve(root, ".e2e-artifacts/lensmap-sidepanel");
+const nodeBin = process.env.LENSMAP_SERVER_NODE ?? process.execPath;
 const serverPort = 4417;
 const pdfPort = 9976;
 const serverBase = `http://127.0.0.1:${serverPort}/api`;
@@ -23,10 +25,21 @@ const duplicatePdfUrl = `http://127.0.0.1:${pdfPort}/duplicate.pdf`;
 const authenticatedLoginUrl = `http://127.0.0.1:${pdfPort}/auth/login`;
 const authenticatedPdfUrl = `http://127.0.0.1:${pdfPort}/auth/book.pdf`;
 const selectedSentence = "Remote cache invalidation is delegated to BlueGate, which is defined later in this book.";
-const question = "この抜粋だけではBlueGateの定義がありません。本書内を追加参照してBlueGateの定義を日本語で説明してください。書籍本文に基づく説明には必ずSource IDを付けてください。";
+const question = "この抜粋だけではBlueGateの定義がありません。Workspace内を追加参照してBlueGateの定義を日本語で説明してください。書籍本文に基づく説明には必ずSource IDを付けてください。";
 
 rmSync(dataDir, { recursive: true, force: true });
 rmSync(localPdfPath, { force: true });
+rmSync(extensionPath, { recursive: true, force: true });
+rmSync(visualAcceptanceDir, { recursive: true, force: true });
+mkdirSync(visualAcceptanceDir, { recursive: true });
+cpSync(builtExtensionPath, extensionPath, { recursive: true });
+// Headless Chrome cannot accept the native optional-host permission prompt. Grant <all_urls> only
+// in this disposable E2E copy; production keeps it optional and requests it on explicit Visual Capture.
+const e2eManifestPath = resolve(extensionPath, "manifest.json");
+const e2eManifest = JSON.parse(readFileSync(e2eManifestPath, "utf8"));
+e2eManifest.host_permissions = [...new Set([...(e2eManifest.host_permissions ?? []), "<all_urls>"])];
+e2eManifest.optional_host_permissions = [];
+writeFileSync(e2eManifestPath, JSON.stringify(e2eManifest, null, 2));
 const children = [];
 let browser;
 
@@ -34,18 +47,19 @@ try {
   children.push(spawn(nodeBin, ["e2e/chrome-pdf-fixture-server.mjs"], {
     cwd: root,
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, DEEP_READER_PDF_PORT: String(pdfPort) },
+    env: { ...process.env, LENSMAP_PDF_PORT: String(pdfPort) },
   }));
   children.push(spawn(nodeBin, ["apps/server/dist/index.js"], {
     cwd: root,
     stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
-      DEEP_READER_DATA_DIR: dataDir,
-      DEEP_READER_MIGRATIONS_DIR: migrationsDir,
-      DEEP_READER_HOST: "127.0.0.1",
-      DEEP_READER_PORT: String(serverPort),
-      DEEP_READER_CAPABILITY_TOKEN: capabilityToken,
+      LENSMAP_DATA_DIR: dataDir,
+      LENSMAP_MIGRATIONS_DIR: migrationsDir,
+      LENSMAP_HOST: "127.0.0.1",
+      LENSMAP_PORT: String(serverPort),
+      LENSMAP_CAPABILITY_TOKEN: capabilityToken,
+      LENSMAP_OCR_BIN: resolve(root, "native/macos/bin/lensmap-ocr"),
       CODEX_BIN: process.env.CODEX_BIN ?? "/Applications/ChatGPT.app/Contents/Resources/codex",
     },
   }));
@@ -53,12 +67,11 @@ try {
 
   await waitForHttp(`${serverBase}/health`, 30_000);
   await waitForHttp(pdfUrl, 15_000);
-  const codexStatus = await jsonFetch(`${serverBase}/codex/status`);
+  const codexStatus = await apiJson("/codex/status");
   assert.equal(codexStatus.ready, true, codexStatus.error ?? "Codex app-server is not ready");
   assert.equal(codexStatus.account?.type, "chatgpt", "Live E2E requires ChatGPT-authenticated Codex");
 
   browser = await puppeteer.launch(extensionLaunchOptions(extensionPath));
-
   const workerTarget = await browser.waitForTarget(
     (target) => target.type() === "service_worker" && target.url().endsWith("background.js"),
     { timeout: 20_000 },
@@ -66,43 +79,37 @@ try {
   const worker = await workerTarget.worker();
   assert(worker, "Extension service worker was not created");
   const extensionId = new URL(workerTarget.url()).host;
-  await worker.evaluate(async ({ configuredServerBase, capabilityToken }) => {
-    await chrome.storage.local.set({ deepReaderServerBase: configuredServerBase });
-    await chrome.storage.session.set({ deepReaderCapabilityToken: capabilityToken });
+
+  await worker.evaluate(async ({ configuredServerBase, token }) => {
+    await chrome.storage.local.set({ "lensmap.serverBase": configuredServerBase });
+    await chrome.storage.session.set({ "lensmap.capabilityToken": token });
     let lastError = null;
     for (let attempt = 0; attempt < 50; attempt += 1) {
       try {
         await Promise.all([
-          chrome.contextMenus.update("deep-reader-dive", { visible: true }),
-          chrome.contextMenus.update("deep-reader-add", { visible: true }),
+          chrome.contextMenus.update("lensmap-explore", { visible: true }),
+          chrome.contextMenus.update("lensmap-add-reference", { visible: true }),
+          chrome.contextMenus.update("lensmap-capture-region", { visible: true }),
         ]);
         return;
       } catch (error) {
         lastError = error;
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
       }
     }
-    throw lastError ?? new Error("Context menus were not registered");
-  }, { configuredServerBase: serverBase, capabilityToken });
+    throw lastError ?? new Error("Canonical Lensmap context menus were not registered");
+  }, { configuredServerBase: serverBase, token: capabilityToken });
 
   const pdfPage = await browser.newPage();
   await pdfPage.goto(pdfUrl);
   await wait(900);
-  assert(
-    browser.targets().some((target) => target.url().includes("mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html")),
-    "Chrome built-in PDF viewer did not load",
-  );
-
+  assert(browser.targets().some(isPdfViewerTarget), "Chrome built-in PDF viewer did not load");
   const selectedText = await selectAllViewerText(browser, selectedSentence);
-  assert(selectedText.includes(selectedSentence), "Chrome PDF viewer selection did not contain the expected page-1 text");
-  assert(selectedText.includes("BlueGate is a consistency coordinator"), "Chrome PDF viewer selection did not include later PDF pages");
+  assert(selectedText.includes(selectedSentence), "Chrome PDF viewer selection did not contain expected page-1 text");
 
   await pdfPage.bringToFront();
-  const pdfTabId = await worker.evaluate(async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    return tab?.id ?? null;
-  });
-  assert.notEqual(pdfTabId, null, "Could not resolve the PDF tab id");
+  const pdfTabId = await activeTabId(worker);
+  assert.notEqual(pdfTabId, null, "Could not resolve PDF tab id");
 
   const probePage = await browser.newPage();
   await probePage.goto(`chrome-extension://${extensionId}/probe.html`);
@@ -113,56 +120,86 @@ try {
   );
   const sidePanel = await sideTarget.asPage();
   assert(sidePanel, "Chrome Side Panel target could not be controlled");
-  await pdfPage.bringToFront();
-  await wait(250);
+  await sidePanel.setViewport({ width: 390, height: 900, deviceScaleFactor: 1 });
 
-  const captureResult = await probePage.evaluate(async ({ selectionText, pageUrl, tabId }) =>
-    chrome.runtime.sendMessage({
-      type: "probe-capture-selection",
-      payload: { selectionText, pageUrl, tabId },
-    }), {
+  // First-run onboarding is lightweight, dismissible, and must not return after dismissal.
+  await sidePanel.waitForSelector(".onboarding-card", { timeout: 15_000 });
+  const onboardingText = await sidePanel.$eval(".onboarding-card", (element) => element.textContent ?? "");
+  for (const label of ["Focus", "Explore", "Map", "Return"]) assert(onboardingText.includes(label), `Onboarding is missing ${label}`);
+  await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "01-onboarding.png") });
+  await sidePanel.evaluate(() => {
+    const button = [...document.querySelectorAll(".onboarding-actions button")].find((candidate) => candidate.textContent?.includes("使い始める"));
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Onboarding dismiss button not found");
+    button.click();
+  });
+  await sidePanel.waitForFunction(() => !document.querySelector(".onboarding-card"), { timeout: 10_000 });
+  assert.equal(await worker.evaluate(async () => (await chrome.storage.local.get("lensmap.onboardingDismissed"))["lensmap.onboardingDismissed"]), true);
+  await sidePanel.reload({ waitUntil: "domcontentloaded" });
+  await wait(300);
+  assert.equal(await sidePanel.$(".onboarding-card"), null, "Dismissed onboarding reappeared after Side Panel reload");
+
+  await pdfPage.bringToFront();
+  const textCapture = await captureText(probePage, {
     selectionText: selectedSentence,
     pageUrl: pdfUrl,
     tabId: pdfTabId,
+    focusComposer: true,
   });
-  assert.equal(captureResult?.ok, true, captureResult?.error ?? "Selection pipeline failed");
-  assert.equal(captureResult.state?.status, "ready");
-  assert.equal(captureResult.state?.sources?.length, 1);
-  assert.equal(captureResult.state.sources[0].pageStart, 0, "Selection did not resolve back to PDF page 1");
-  assert(captureResult.state.sources[0].documentNodeIds.length > 0, "Selection did not resolve to a semantic document block");
-  assert(captureResult.state.sources[0].rects.length > 0, "Selection did not recover PDF-coordinate rectangles");
+  assert.equal(textCapture.ok, true, textCapture.error ?? "Text Source pipeline failed");
+  assert.equal(textCapture.state?.status, "ready");
+  assert(textCapture.state?.workspaceId, "Capture did not resolve an active Reader Workspace");
+  const workspaceId = textCapture.state.workspaceId;
+  const bookId = textCapture.state.bookId;
+  assert(bookId, "Capture did not resolve a Book");
 
-  await sidePanel.waitForSelector(".source-card", { timeout: 30_000 });
+  const workspaceAfterText = await apiJson(`/workspaces/${workspaceId}`);
+  assert.equal(workspaceAfterText.sources.length, 1, "Text Source was not routed to the Workspace");
+  assert.equal(workspaceAfterText.sources[0]?.kind, "text");
+  assert.equal(workspaceAfterText.sources[0]?.pageStart, 0);
+
+  try {
+    await sidePanel.waitForSelector(".source-card", { timeout: 30_000 });
+  } catch (error) {
+    const diagnostics = await sidePanel.evaluate(() => ({ text: document.body.textContent, html: document.body.innerHTML.slice(0, 4000) }));
+    throw new Error(`Side Panel did not render Workspace source: ${JSON.stringify(diagnostics)}`, { cause: error });
+  }
   const sourceDisplay = await sidePanel.$eval(".source-card", (element) => element.textContent ?? "");
-  assert(sourceDisplay.includes("PDF p.1"));
+  assert(sourceDisplay.includes("p.1"));
   assert(sourceDisplay.includes("Remote cache invalidation"));
 
-  const questionSelector = 'textarea[aria-label="質問"]';
-  await sidePanel.click(questionSelector);
-  await sidePanel.type(questionSelector, question);
-  await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll("button")].find((candidate) => candidate.textContent?.trim() === "送信");
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Send button not found");
-    button.click();
-  });
+  await sendExplore(sidePanel, question);
   await sidePanel.waitForFunction(
     () => [...document.querySelectorAll(".citation-row button")].some((button) => button.textContent?.includes("PDF p.3")),
     { timeout: 180_000 },
   );
-  const answer = await sidePanel.$eval(".message.assistant:last-of-type .message-content", (element) => element.textContent ?? "");
-  assert(answer.length > 30, "Codex answer was empty");
   await sidePanel.waitForSelector(".retrieval-audit", { timeout: 30_000 });
+  await sidePanel.waitForSelector(".map-save-state", { timeout: 30_000 });
+  await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "02-explore-response.png"), fullPage: true });
 
-  const state = await readTabState(worker, pdfTabId);
-  const chat = await jsonFetch(`${serverBase}/books/${state.bookId}/chat`);
-  const assistant = [...(chat.thread?.messages ?? [])].reverse().find((message) => message.role === "assistant");
+  const explore = await apiJson(`/workspaces/${workspaceId}/explore`);
+  const assistant = [...(explore.thread?.messages ?? [])].reverse().find((message) => message.role === "assistant");
   assert.equal(assistant?.status, "completed");
-  assert((assistant?.retrievalEvents?.length ?? 0) > 0, "Codex did not perform progressive book retrieval");
+  assert((assistant?.retrievalEvents?.length ?? 0) > 0, "Explore did not perform progressive Workspace retrieval");
   const pageThreeSource = assistant?.sources?.find(
-    (source) => source.origin === "ai-expansion" && source.pageStart === 2 && assistant.content.includes(`[${source.label}]`),
+    (source) => source.kind === "text" && source.origin === "ai-expansion" && source.pageStart === 2 && assistant.content.includes(`[${source.label}]`),
   );
-  assert(pageThreeSource, "Codex did not cite an AI-expanded source from PDF page 3");
+  assert(pageThreeSource, "Explore did not cite an AI-expanded source from PDF page 3");
 
+  const mapsAfterExplore = await apiJson(`/maps?workspaceId=${encodeURIComponent(workspaceId)}`);
+  assert.equal(mapsAfterExplore.artifacts.length, 1, "Completed Explore answer was not auto-saved as exactly one Map");
+  const firstMapId = mapsAfterExplore.artifacts[0].id;
+  assert(mapsAfterExplore.artifacts[0].sourceBooks.some((book) => book.bookId === bookId));
+
+  // Re-reading/creating the same Map from the same completed message remains idempotent.
+  const duplicateMap = await apiJson("/maps/from-message", {
+    method: "POST",
+    body: { messageId: assistant.id },
+  });
+  assert.equal(duplicateMap.artifact.id, firstMapId, "Map auto-save idempotency was broken");
+  const mapsAfterRetry = await apiJson(`/maps?workspaceId=${encodeURIComponent(workspaceId)}`);
+  assert.equal(mapsAfterRetry.artifacts.length, 1, "Retry created a duplicate Map");
+
+  // Citation returns to the actual source PDF page, independently of the currently selected Workspace.
   await sidePanel.evaluate(() => {
     const button = [...document.querySelectorAll(".citation-row button")]
       .find((candidate) => candidate.textContent?.includes("PDF p.3"));
@@ -170,195 +207,218 @@ try {
     button.click();
   });
   await wait(1200);
-  assert.equal(pdfPage.url(), `${pdfUrl}#page=3`, "Citation did not update the PDF URL fragment");
+  assert.equal(pdfPage.url(), `${pdfUrl}#page=3`, "Citation did not update PDF fragment");
   assert.equal(String(await readViewerCurrentPage(browser, "3")), "3", "Built-in PDF viewer did not navigate to PDF page 3");
 
-  await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll("button")].find((candidate) => candidate.textContent?.includes("回答をInsightに保存"));
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Insight save button not found");
-    button.click();
-  });
-  await sidePanel.waitForFunction(
-    () => [...document.querySelectorAll("button")].some((button) => button.textContent?.includes("Insight保存済み")),
-    { timeout: 30_000 },
+  // Visual Source: capture the visible PDF viewport, drag a region in the extension-owned Capture Surface,
+  // crop PNG, persist it, and attach it to the same Workspace.
+  await pdfPage.bringToFront();
+  const captureTargetPromise = browser.waitForTarget(
+    (target) => target.url().includes(`chrome-extension://${extensionId}/visual-capture.html?captureId=`),
+    { timeout: 20_000 },
   );
-  const insights = await jsonFetch(`${serverBase}/insights?bookId=${state.bookId}`);
-  assert((insights.artifacts?.length ?? 0) > 0, "Insight was not persisted from the extension Side Panel");
+  await sidePanel.click(".visual-capture-button");
+  const captureTarget = await captureTargetPromise;
+  const capturePage = await captureTarget.asPage();
+  assert(capturePage, "Visual Capture Surface was not opened");
+  await capturePage.waitForSelector("#capture-image:not([hidden])", { timeout: 15_000 });
+  const imageBox = await capturePage.$eval("#capture-image", (element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+  });
+  assert(imageBox.width > 100 && imageBox.height > 100, "Captured viewport image was not rendered");
+  await capturePage.mouse.move(imageBox.x + imageBox.width * 0.15, imageBox.y + imageBox.height * 0.2);
+  await capturePage.mouse.down();
+  await capturePage.mouse.move(imageBox.x + imageBox.width * 0.72, imageBox.y + imageBox.height * 0.72, { steps: 8 });
+  await capturePage.mouse.up();
+  await capturePage.waitForFunction(() => !document.querySelector("#save")?.hasAttribute("disabled"));
+  await capturePage.click("#save");
+  await waitForTargetGone(browser, captureTarget, 20_000);
 
-  // Extension Insight UI supports editing into immutable v2 and exposes the version diff.
+  await waitFor(async () => {
+    const workspace = await apiJson(`/workspaces/${workspaceId}`);
+    return workspace.sources.some((source) => source.kind === "visual");
+  }, 30_000, "Visual Source was not attached to Workspace");
+  const workspaceAfterVisual = await apiJson(`/workspaces/${workspaceId}`);
+  const visualSource = workspaceAfterVisual.sources.find((source) => source.kind === "visual");
+  assert(visualSource?.imageAssetId, "Visual Source does not retain primary PNG asset");
+  assert(["unresolved", "page-resolved", "rect-resolved"].includes(visualSource.locationStatus));
+  const visualAsset = await apiFetch(`/books/${visualSource.bookId}/sources/assets/${visualSource.imageAssetId}`);
+  assert.equal(visualAsset.headers.get("content-type"), "image/png");
+  assert((await visualAsset.arrayBuffer()).byteLength > 100, "Visual Source PNG was empty");
+
+  // Maps UI is visual-first and supports immutable version editing.
+  await sidePanel.bringToFront();
   await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll(".view-tabs button")].find((candidate) => candidate.textContent?.includes("Insights"));
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Insights tab not found");
+    const button = [...document.querySelectorAll(".view-tabs button")].find((candidate) => candidate.textContent?.trim() === "Maps");
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Maps tab not found");
     button.click();
   });
-  await sidePanel.waitForSelector(".insight-list-item", { timeout: 30_000 });
-  await sidePanel.click(".insight-list-item");
-  await sidePanel.waitForSelector(".insight-detail", { timeout: 30_000 });
+  await sidePanel.waitForSelector(".map-list-item", { timeout: 30_000 });
+  await sidePanel.click(".map-list-item");
+  await sidePanel.waitForSelector(".map-detail", { timeout: 30_000 });
+  await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "03-map-detail.png"), fullPage: true });
   await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll(".insight-toolbar button")].find((candidate) => candidate.textContent?.includes("編集"));
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Insight edit button not found");
+    const button = [...document.querySelectorAll(".map-toolbar button")].find((candidate) => candidate.textContent?.includes("編集"));
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Map edit button not found");
     button.click();
   });
-  await sidePanel.waitForSelector(".insight-editor textarea");
-  const firstDraft = await sidePanel.$eval(".insight-editor textarea", (element) => element.value);
-  await sidePanel.$eval(".insight-editor textarea", (element, value) => {
+  await sidePanel.waitForSelector(".map-editor textarea");
+  const firstDraft = await sidePanel.$eval(".map-editor textarea", (element) => element.value);
+  await sidePanel.$eval(".map-editor textarea", (element, value) => {
     element.value = value;
     element.dispatchEvent(new Event("input", { bubbles: true }));
   }, `${firstDraft}\n\nユーザー編集メモ`);
   await sidePanel.evaluate(() => {
     const button = [...document.querySelectorAll(".editor-actions button")].find((candidate) => candidate.textContent?.includes("新しいversionとして保存"));
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Insight version save button not found");
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Map version save button not found");
     button.click();
   });
-  await sidePanel.waitForFunction(() => document.querySelector(".insight-meta")?.textContent?.includes("v2"), { timeout: 30_000 });
-  await sidePanel.waitForSelector(".diff-panel", { timeout: 30_000 });
-  const insightV2 = await jsonFetch(`${serverBase}/insights/${insights.artifacts[0].id}`);
-  assert.equal(insightV2.artifact.version, 2, "Extension Insight edit did not create v2");
+  await sidePanel.waitForFunction(() => document.querySelector(".map-meta")?.textContent?.includes("v2"), { timeout: 30_000 });
+  const mapV2 = await apiJson(`/maps/${firstMapId}`);
+  assert.equal(mapV2.artifact.version, 2, "Map edit did not create immutable v2");
 
-  // Multiple Deep Dive chats can be created and switched independently within the PDF tab.
+  // Explore threads belong to the Workspace, not to the active Chrome tab.
   await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll(".view-tabs button")].find((candidate) => candidate.textContent?.includes("Chat"));
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Chat tab not found");
+    const button = [...document.querySelectorAll(".view-tabs button")].find((candidate) => candidate.textContent?.trim() === "Explore");
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Explore tab not found");
     button.click();
   });
-  await sidePanel.waitForSelector("select[aria-label='Deep Dive chat']");
-  const firstThreadId = state.threadId;
+  await sidePanel.waitForSelector("select[aria-label='Explore thread']");
+  const beforeThreads = await apiJson(`/workspaces/${workspaceId}/explore/threads`);
   await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll("button")].find((candidate) => candidate.getAttribute("aria-label") === "新しいDeep Dive");
-    if (!(button instanceof HTMLButtonElement)) throw new Error("New Deep Dive button not found");
+    const button = document.querySelector('button[aria-label="新しいExplore"]');
+    if (!(button instanceof HTMLButtonElement)) throw new Error("New Explore button not found");
     button.click();
   });
-  await sidePanel.waitForFunction(() => document.querySelectorAll("select[aria-label='Deep Dive chat'] option").length >= 2, { timeout: 30_000 });
-  const stateAfterNewChat = await readTabState(worker, pdfTabId);
-  assert.notEqual(stateAfterNewChat.threadId, firstThreadId, "New Deep Dive did not switch thread");
+  await waitFor(async () => (await apiJson(`/workspaces/${workspaceId}/explore/threads`)).threads.length > beforeThreads.threads.length, 30_000, "New Explore thread was not created");
 
-  // Local file:// PDFs use the same pipeline when the user has enabled Chrome's file-URL access toggle.
-  const localPdfBytes = Buffer.from(await (await fetch(pdfUrl)).arrayBuffer());
-  writeFileSync(localPdfPath, localPdfBytes);
-  const localPdfUrl = pathToFileURL(localPdfPath).toString();
-  const localPdfPage = await browser.newPage();
-  await localPdfPage.goto(localPdfUrl);
-  await localPdfPage.bringToFront();
-  await wait(700);
-  const fileAccessAllowed = await worker.evaluate(() => chrome.extension.isAllowedFileSchemeAccess());
-  assert.equal(fileAccessAllowed, true, "File-scheme access test switch did not enable extension file access");
-  const localPdfTabId = await worker.evaluate(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null);
-  const localCapture = await probePage.evaluate(async ({ selectionText, pageUrl, tabId }) =>
-    chrome.runtime.sendMessage({ type: "probe-capture-selection", payload: { selectionText, pageUrl, tabId } }),
-  { selectionText: selectedSentence, pageUrl: localPdfUrl, tabId: localPdfTabId });
-  assert.equal(localCapture?.ok, true, localCapture?.error ?? "Local file selection pipeline failed");
-  assert.equal(localCapture.state?.sources?.[0]?.pageStart, 0, "Local PDF selection did not resolve to page 1");
-
-  // Duplicate text stays ambiguous until the reader picks the occurrence, and tab state remains isolated.
+  // A second PDF can join the same Workspace without replacing the first PDF/Explore state.
   const duplicatePage = await browser.newPage();
   await duplicatePage.goto(duplicatePdfUrl);
   await duplicatePage.bringToFront();
   await wait(600);
-  const duplicateTabId = await worker.evaluate(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null);
-  assert.notEqual(duplicateTabId, null);
-  const duplicateCapture = await probePage.evaluate(async ({ selectionText, pageUrl, tabId }) =>
-    chrome.runtime.sendMessage({ type: "probe-capture-selection", payload: { selectionText, pageUrl, tabId } }),
-  { selectionText: "Shared statement appears in two chapters.", pageUrl: duplicatePdfUrl, tabId: duplicateTabId });
-  assert.equal(duplicateCapture?.ok, true, duplicateCapture?.error ?? "Duplicate selection resolution failed");
+  const duplicateTabId = await activeTabId(worker);
+  const duplicateCapture = await captureText(probePage, {
+    selectionText: "Shared statement appears in two chapters.",
+    pageUrl: duplicatePdfUrl,
+    tabId: duplicateTabId,
+  });
+  assert.equal(duplicateCapture?.ok, true, duplicateCapture?.error ?? "Second PDF capture failed");
+  assert.equal(duplicateCapture.state?.workspaceId, workspaceId, "Second PDF did not route to active Workspace");
   assert.equal(duplicateCapture.state?.status, "ambiguous");
   assert.equal(duplicateCapture.state?.resolutionCandidates?.length, 2);
-  await sidePanel.waitForFunction(() => document.body.textContent?.includes("引用箇所を選択"), { timeout: 30_000 });
-  await sidePanel.evaluate(() => {
-    const candidate = [...document.querySelectorAll(".candidate-list button")].find((button) => button.textContent?.includes("PDF p.2"));
-    if (!(candidate instanceof HTMLButtonElement)) throw new Error("PDF p.2 ambiguity candidate not found");
-    candidate.click();
-  });
-  await sidePanel.waitForFunction(() => document.querySelector(".source-card")?.textContent?.includes("PDF p.2"), { timeout: 30_000 });
-  const isolatedStates = {
-    first: await readTabState(worker, pdfTabId),
-    second: await readTabState(worker, duplicateTabId),
-  };
-  assert.equal(isolatedStates.first?.sources?.[0]?.pageStart, 0, "First PDF tab state was overwritten");
-  assert.equal(isolatedStates.second?.sources?.[0]?.pageStart, 1, "Ambiguous second occurrence was not materialized on page 2");
+  const resolvedDuplicate = await probePage.evaluate(async ({ tabId }) =>
+    chrome.runtime.sendMessage({ type: "resolve-selection-candidate", tabId, candidateIndex: 1 }),
+  { tabId: duplicateTabId });
+  assert.equal(resolvedDuplicate?.ok, true, resolvedDuplicate?.error ?? "Ambiguous selection could not be resolved");
+  const crossPdfWorkspace = await apiJson(`/workspaces/${workspaceId}`);
+  assert(crossPdfWorkspace.books.length >= 2, "Workspace did not retain both PDFs");
+  assert(crossPdfWorkspace.sources.some((source) => source.bookId !== bookId), "Second PDF source was not retained alongside first PDF sources");
+  assert((await apiJson(`/workspaces/${workspaceId}/explore/threads`)).threads.length > beforeThreads.threads.length, "Switching PDF tabs lost Workspace Explore threads");
 
-  // Cookie-authenticated PDF can be refetched by the extension with the browser session.
+  // Capture metadata resets when one Chrome tab navigates to another PDF, while Workspace data remains intact.
+  const reusedPage = await browser.newPage();
+  await reusedPage.goto(pdfUrl);
+  await reusedPage.bringToFront();
+  await wait(500);
+  const reusedTabId = await activeTabId(worker);
+  const reusedFirst = await captureText(probePage, { selectionText: selectedSentence, pageUrl: pdfUrl, tabId: reusedTabId });
+  assert.equal(reusedFirst?.ok, true);
+  await reusedPage.goto(duplicatePdfUrl);
+  await wait(600);
+  const resetCaptureState = await readTabState(worker, reusedTabId);
+  assert.equal(resetCaptureState?.status, "idle", "Same-tab PDF navigation did not reset capture metadata");
+  assert.equal(resetCaptureState?.bookId, null, "Old document identity leaked after same-tab navigation");
+  const workspaceAfterNavigation = await apiJson(`/workspaces/${workspaceId}`);
+  assert(workspaceAfterNavigation.sources.length >= crossPdfWorkspace.sources.length, "Tab navigation incorrectly cleared Workspace evidence");
+
+  // file:// and cookie-authenticated PDFs still use the same text capture pipeline.
+  const localPdfBytes = Buffer.from(await (await fetch(pdfUrl)).arrayBuffer());
+  writeFileSync(localPdfPath, localPdfBytes);
+  const localPdfUrl = pathToFileURL(localPdfPath).toString();
+  const localPage = await browser.newPage();
+  await localPage.goto(localPdfUrl);
+  await localPage.bringToFront();
+  await wait(700);
+  assert.equal(await worker.evaluate(() => chrome.extension.isAllowedFileSchemeAccess()), true, "File URL access is not enabled in E2E profile");
+  const localCapture = await captureText(probePage, { selectionText: selectedSentence, pageUrl: localPdfUrl, tabId: await activeTabId(worker) });
+  assert.equal(localCapture?.ok, true, localCapture?.error ?? "Local PDF capture failed");
+
   const authPage = await browser.newPage();
   await authPage.goto(authenticatedLoginUrl, { waitUntil: "networkidle0" });
   assert.equal(authPage.url(), authenticatedPdfUrl);
   await authPage.bringToFront();
   await wait(500);
-  const authTabId = await worker.evaluate(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null);
-  const authCapture = await probePage.evaluate(async ({ selectionText, pageUrl, tabId }) =>
-    chrome.runtime.sendMessage({ type: "probe-capture-selection", payload: { selectionText, pageUrl, tabId } }),
-  { selectionText: "Authenticated PDF content remains readable through the Deep Reader extension.", pageUrl: authenticatedPdfUrl, tabId: authTabId });
+  const authCapture = await captureText(probePage, {
+    selectionText: "Authenticated PDF content remains readable through the Lensmap extension.",
+    pageUrl: authenticatedPdfUrl,
+    tabId: await activeTabId(worker),
+  });
   assert.equal(authCapture?.ok, true, authCapture?.error ?? "Authenticated PDF refetch failed");
-  assert.equal(authCapture.state?.sources?.[0]?.pageStart, 0);
 
-  // Reusing one Chrome tab for another PDF must clear all document-bound Source/thread state.
-  const reusedPage = await browser.newPage();
-  await reusedPage.goto(pdfUrl);
-  await reusedPage.bringToFront();
-  await wait(500);
-  const reusedTabId = await worker.evaluate(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null);
-  assert.notEqual(reusedTabId, null);
-  const reusedFirstCapture = await probePage.evaluate(async ({ selectionText, pageUrl, tabId }) =>
-    chrome.runtime.sendMessage({ type: "probe-capture-selection", payload: { selectionText, pageUrl, tabId } }),
-  { selectionText: selectedSentence, pageUrl: pdfUrl, tabId: reusedTabId });
-  assert.equal(reusedFirstCapture?.ok, true, reusedFirstCapture?.error ?? "Same-tab first PDF capture failed");
-  const firstReusedBookId = reusedFirstCapture.state?.bookId;
-  assert(firstReusedBookId);
-  assert.equal(reusedFirstCapture.state?.sources?.length, 1);
-
-  await reusedPage.goto(duplicatePdfUrl);
-  await reusedPage.bringToFront();
-  await wait(500);
-  const resetAfterNavigation = await readTabState(worker, reusedTabId);
-  assert.equal(resetAfterNavigation?.status, "idle", "Same-tab PDF navigation did not reset the previous document state");
-  assert.equal(resetAfterNavigation?.sources?.length, 0, "Previous PDF sources leaked into the new document");
-  assert.equal(resetAfterNavigation?.threadId, null, "Previous PDF chat thread leaked into the new document");
-
-  const reusedSecondCapture = await probePage.evaluate(async ({ selectionText, pageUrl, tabId }) =>
-    chrome.runtime.sendMessage({ type: "probe-capture-selection", payload: { selectionText, pageUrl, tabId } }),
-  { selectionText: "Shared statement appears in two chapters.", pageUrl: duplicatePdfUrl, tabId: reusedTabId });
-  assert.equal(reusedSecondCapture?.ok, true, reusedSecondCapture?.error ?? "Same-tab second PDF capture failed");
-  assert.equal(reusedSecondCapture.state?.status, "ambiguous");
-  assert.notEqual(reusedSecondCapture.state?.bookId, firstReusedBookId, "Same-tab navigation reused the previous managed book");
-  assert.equal(reusedSecondCapture.state?.sources?.length, 0, "Old sources reappeared after second PDF capture");
-  assert.equal(reusedSecondCapture.state?.threadId, null, "Old thread reappeared after second PDF capture");
-
-  // Server outage is surfaced in the Side Panel rather than failing silently.
-  // Bring the target PDF tab back to the foreground because Side Panel UI follows the active tab.
-  await authPage.bringToFront();
-  await wait(250);
-  await worker.evaluate(async () => chrome.storage.local.set({ deepReaderServerBase: "http://127.0.0.1:65530/api" }));
-  const offlineCapture = await probePage.evaluate(async ({ selectionText, pageUrl, tabId }) =>
-    chrome.runtime.sendMessage({ type: "probe-capture-selection", payload: { selectionText, pageUrl, tabId } }),
-  { selectionText: "The browser cookie is required when the extension refetches this PDF.", pageUrl: authenticatedPdfUrl, tabId: authTabId });
-  assert.equal(offlineCapture?.ok, false, "Offline server capture unexpectedly succeeded");
-  await sidePanel.waitForSelector(".capture-status.error", { timeout: 30_000 });
-  await worker.evaluate(async (base) => chrome.storage.local.set({ deepReaderServerBase: base }), serverBase);
+  // Help is reachable from the Side Panel and documents Workspace/Visual Source/Maps.
+  await sidePanel.bringToFront();
+  const helpTargetPromise = browser.waitForTarget(
+    (target) => target.url() === `chrome-extension://${extensionId}/help.html`,
+    { timeout: 10_000 },
+  );
+  await sidePanel.click(".header-help");
+  const helpTarget = await helpTargetPromise;
+  const helpPage = await helpTarget.asPage();
+  const helpText = await helpPage.$eval("body", (element) => element.textContent ?? "");
+  assert(helpText.includes("Reader Workspace"));
+  assert(helpText.includes("Visual Source"));
+  assert(helpText.includes("Maps"));
 
   console.log(JSON.stringify({
     extensionId,
     pdfViewer: "chrome-built-in",
-    selectedTextVerified: true,
-    sidePanelOpened: true,
-    resolvedPage: 1,
-    codexModel: codexStatus.models.find((model) => model.isDefault)?.id ?? null,
+    canonicalContextMenus: true,
+    workspaceId,
+    textSourceResolved: true,
+    visualSourceSaved: true,
+    visualLocationStatus: visualSource.locationStatus,
     progressiveRetrievalEvents: assistant.retrievalEvents.length,
     aiExpandedCitationPage: 3,
-    citationReturnedToPage: 3,
+    mapAutoSaved: true,
+    mapIdempotent: true,
+    mapVersion2: true,
+    multiPdfWorkspace: true,
+    workspaceExploreSurvivesTabSwitch: true,
+    sameTabCaptureResetOnly: true,
     localFilePdfResolved: true,
-    duplicateSelectionCandidates: 2,
-    tabStateIsolation: true,
-    sameTabDocumentReset: true,
     authenticatedPdfResolved: true,
-    insightSaved: true,
-    insightVersion2: true,
-    multipleChatUi: true,
-    retrievalAuditVisible: true,
-    serverOutageSurfaced: true,
+    helpVerified: true,
+    onboardingDismissalPersistent: true,
+    visualAcceptanceDir,
   }, null, 2));
 } finally {
   await browser?.close().catch(() => {});
   for (const child of children) stopChild(child);
   rmSync(dataDir, { recursive: true, force: true });
   rmSync(localPdfPath, { force: true });
+  rmSync(extensionPath, { recursive: true, force: true });
+}
+
+async function captureText(probePage, payload) {
+  return probePage.evaluate(async (input) => chrome.runtime.sendMessage({ type: "probe-capture-selection", payload: input }), payload);
+}
+
+async function sendExplore(sidePanel, text) {
+  const selector = 'textarea[aria-label="質問"]';
+  await sidePanel.waitForSelector(selector, { timeout: 30_000 });
+  await sidePanel.click(selector);
+  await sidePanel.type(selector, text);
+  await sidePanel.evaluate(() => {
+    const button = [...document.querySelectorAll(".composer button")].find((candidate) => candidate.textContent?.includes("送信"));
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Explore send button not found");
+    button.click();
+  });
+}
+
+async function activeTabId(worker) {
+  return worker.evaluate(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null);
 }
 
 async function selectAllViewerText(browser, expectedText) {
@@ -371,7 +431,7 @@ async function selectAllViewerText(browser, expectedText) {
         const viewer = document.querySelector('pdf-viewer');
         if (!viewer?.pluginController_) return '';
         viewer.pluginController_.selectAll();
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
         return (await viewer.pluginController_.getSelectedText()).selectedText;
       })()`,
       awaitPromise: true,
@@ -406,16 +466,15 @@ async function readViewerCurrentPage(browser, expectedPage = null) {
 }
 
 function viewerTarget(browser) {
-  const target = browser.targets().find((candidate) =>
-    candidate.url().includes("mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html"),
-  );
+  const target = browser.targets().find(isPdfViewerTarget);
   assert(target, "Chrome built-in PDF viewer target not found");
   return target;
 }
+function isPdfViewerTarget(target) { return target.url().includes("mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html"); }
 
 async function readTabState(worker, tabId) {
   return worker.evaluate(async (id) => {
-    const key = `deepReaderTabState:${id}`;
+    const key = `lensmap.tabState:${id}`;
     const stored = await chrome.storage.local.get(key);
     return stored[key] ?? null;
   }, tabId);
@@ -435,20 +494,43 @@ async function waitForHttp(url, timeoutMs) {
   throw lastError ?? new Error(`Timed out waiting for ${url}`);
 }
 
-async function jsonFetch(url) {
-  const response = await fetch(url, {
-    headers: { authorization: `Bearer ${capabilityToken}` },
-  });
+async function apiJson(path, options = {}) {
+  const response = await apiFetch(path, options);
   const text = await response.text();
-  assert(response.ok, `${url}: ${response.status} ${text}`);
-  return JSON.parse(text);
+  assert(response.ok, `${path}: ${response.status} ${text}`);
+  return text ? JSON.parse(text) : null;
+}
+
+async function apiFetch(path, options = {}) {
+  const headers = new Headers(options.headers ?? {});
+  headers.set("authorization", `Bearer ${capabilityToken}`);
+  let body = options.body;
+  if (body !== undefined && !(body instanceof FormData) && typeof body !== "string") {
+    headers.set("content-type", "application/json");
+    body = JSON.stringify(body);
+  }
+  return fetch(`${serverBase}${path}`, { ...options, headers, body });
+}
+
+async function waitFor(predicate, timeoutMs, message) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      if (await predicate()) return;
+    } catch (error) { lastError = error; }
+    await wait(150);
+  }
+  throw lastError ?? new Error(message);
+}
+
+async function waitForTargetGone(browser, target, timeoutMs) {
+  await waitFor(() => !browser.targets().includes(target), timeoutMs, "Extension Capture Surface did not close");
 }
 
 function attachChildDiagnostics(child) {
-  child.stdout?.on("data", (chunk) => process.env.DEEP_READER_E2E_VERBOSE && process.stdout.write(chunk));
-  child.stderr?.on("data", (chunk) => process.env.DEEP_READER_E2E_VERBOSE && process.stderr.write(chunk));
+  child.stdout?.on("data", (chunk) => process.env.LENSMAP_E2E_VERBOSE && process.stdout.write(chunk));
+  child.stderr?.on("data", (chunk) => process.env.LENSMAP_E2E_VERBOSE && process.stderr.write(chunk));
 }
-function stopChild(child) {
-  if (child.exitCode === null) child.kill("SIGTERM");
-}
+function stopChild(child) { if (child.exitCode === null) child.kill("SIGTERM"); }
 function wait(ms) { return new Promise((resolveDelay) => setTimeout(resolveDelay, ms)); }

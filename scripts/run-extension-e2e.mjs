@@ -16,7 +16,7 @@ const hostArch = platform() === "darwin"
   ? (spawnSync("/usr/sbin/sysctl", ["-n", "hw.optional.arm64"], { encoding: "utf8" }).stdout.trim() === "1" ? "arm64" : process.arch)
   : process.arch;
 if (platform() === "darwin" && hostArch === "arm64" && process.arch !== "arm64") {
-  const candidates = [process.env.DEEP_READER_ARM64_NODE, "/opt/homebrew/bin/node"].filter(Boolean);
+  const candidates = [process.env.LENSMAP_ARM64_NODE, "/opt/homebrew/bin/node"].filter(Boolean);
   const nativeNode = candidates.find((candidate) => existsSync(candidate));
   if (nativeNode) browserNode = nativeNode;
 }
@@ -26,8 +26,8 @@ const result = spawnSync(browserNode, [script, ...args], {
   stdio: "inherit",
   env: {
     ...process.env,
-    DEEP_READER_E2E_HEADLESS: process.env.DEEP_READER_E2E_HEADLESS ?? "1",
-    DEEP_READER_SERVER_NODE: process.env.DEEP_READER_SERVER_NODE ?? serverNode,
+    LENSMAP_E2E_HEADLESS: process.env.LENSMAP_E2E_HEADLESS ?? "1",
+    LENSMAP_SERVER_NODE: process.env.LENSMAP_SERVER_NODE ?? serverNode,
   },
 });
 if (result.error) throw result.error;

@@ -3,7 +3,7 @@ export type RichContentSegment =
   | { kind: "mermaid"; source: string }
   | { kind: "visualization"; json: string };
 
-const SPECIAL_FENCE = /^\s*```\s*(mermaid|visualization|deep-reader-viz)\s*$/i;
+const SPECIAL_FENCE = /^\s*```\s*(mermaid|visualization|lensmap-viz)\s*$/i;
 const CLOSING_FENCE = /^\s*```\s*$/;
 
 /** Extract only explicitly allow-listed rich-content fences; all other code remains inert Markdown. */

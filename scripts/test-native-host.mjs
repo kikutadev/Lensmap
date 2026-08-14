@@ -11,9 +11,9 @@ import process from "node:process";
 const root = process.cwd();
 const manifestPath = resolve(
   homedir(),
-  "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.deepreader.launcher.json",
+  "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.lensmap.launcher.json",
 );
-const controllerPath = resolve(root, "scripts/deep-reader-server.mjs");
+const controllerPath = resolve(root, "scripts/lensmap-server.mjs");
 const healthUrl = "http://127.0.0.1:4317/api/health";
 const booksUrl = "http://127.0.0.1:4317/api/books";
 
@@ -22,7 +22,7 @@ if (!existsSync(manifestPath)) {
 }
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-assert.equal(manifest.name, "com.deepreader.launcher");
+assert.equal(manifest.name, "com.lensmap.launcher");
 assert.equal(manifest.type, "stdio");
 assert(Array.isArray(manifest.allowed_origins) && manifest.allowed_origins.length === 1);
 assert(existsSync(manifest.path), `Native Host executable not found: ${manifest.path}`);
@@ -34,7 +34,7 @@ try {
   assert(["already-running", "started"].includes(response.state));
   assert.equal(typeof response.capabilityToken, "string");
   assert(response.capabilityToken.length >= 32);
-  assert.equal(await waitForHealth(10_000), true, "Deep Reader Server did not become healthy");
+  assert.equal(await waitForHealth(10_000), true, "Lensmap Server did not become healthy");
   assert.equal((await fetch(booksUrl)).status, 401, "Loopback API should reject requests without a capability");
   assert.equal((await fetch(booksUrl, { headers: { authorization: `Bearer ${response.capabilityToken}` } })).status, 200);
   console.log(JSON.stringify({

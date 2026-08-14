@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Install or update the self-contained GitHub Release bundle into a stable per-user location.
 SOURCE_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
-BASE_DIR="$HOME/Library/Application Support/DeepReader"
+BASE_DIR="$HOME/Library/Application Support/Lensmap"
 APP_DIR="$BASE_DIR/app"
 DATA_DIR="$BASE_DIR/data"
 RUNTIME_DIR="$BASE_DIR/runtime"
@@ -19,10 +19,10 @@ mkdir -p "$BASE_DIR" "$DATA_DIR" "$RUNTIME_DIR"
 chmod 700 "$BASE_DIR" "$DATA_DIR" "$RUNTIME_DIR"
 
 # Stop an installed server before replacing its executable files. User data lives outside APP_DIR.
-if [[ -x "$APP_DIR/runtime/node/bin/node" && -f "$APP_DIR/scripts/deep-reader-server.mjs" ]]; then
-  DEEP_READER_DATA_DIR="$DATA_DIR" \
-  DEEP_READER_RUNTIME_DIR="$RUNTIME_DIR" \
-    "$APP_DIR/runtime/node/bin/node" "$APP_DIR/scripts/deep-reader-server.mjs" stop >/dev/null 2>&1 || true
+if [[ -x "$APP_DIR/runtime/node/bin/node" && -f "$APP_DIR/scripts/lensmap-server.mjs" ]]; then
+  LENSMAP_DATA_DIR="$DATA_DIR" \
+  LENSMAP_RUNTIME_DIR="$RUNTIME_DIR" \
+    "$APP_DIR/runtime/node/bin/node" "$APP_DIR/scripts/lensmap-server.mjs" stop >/dev/null 2>&1 || true
 fi
 
 if [[ "$SOURCE_DIR" != "$APP_DIR" ]]; then
@@ -30,11 +30,11 @@ if [[ "$SOURCE_DIR" != "$APP_DIR" ]]; then
   /usr/bin/ditto "$SOURCE_DIR" "$NEW_DIR"
 
   [[ -x "$NEW_DIR/runtime/node/bin/node" ]] || {
-    print -u2 "Deep Reader bundle is incomplete: bundled Node runtime was not found."
+    print -u2 "Lensmap bundle is incomplete: bundled Node runtime was not found."
     exit 1
   }
   [[ -f "$NEW_DIR/apps/chrome-extension/.output/chrome-mv3/manifest.json" ]] || {
-    print -u2 "Deep Reader bundle is incomplete: Chrome extension build was not found."
+    print -u2 "Lensmap bundle is incomplete: Chrome extension build was not found."
     exit 1
   }
 
@@ -53,15 +53,15 @@ EXTENSION_DIR="$APP_DIR/apps/chrome-extension/.output/chrome-mv3"
 
 chmod 755 "$NODE" "$APP_DIR/install.command" "$APP_DIR/uninstall.command" "$APP_DIR/status.command"
 
-if ! DEEP_READER_DATA_DIR="$DATA_DIR" \
-DEEP_READER_RUNTIME_DIR="$RUNTIME_DIR" \
+if ! LENSMAP_DATA_DIR="$DATA_DIR" \
+LENSMAP_RUNTIME_DIR="$RUNTIME_DIR" \
   "$NODE" "$MANAGER" install >/dev/null; then
-  print -u2 "Native Messaging registration failed; restoring the previous Deep Reader installation."
+  print -u2 "Native Messaging registration failed; restoring the previous Lensmap installation."
   rm -rf "$APP_DIR"
   if [[ -d "$OLD_DIR" ]]; then
     mv "$OLD_DIR" "$APP_DIR"
     if [[ -x "$APP_DIR/runtime/node/bin/node" && -f "$APP_DIR/scripts/native-host-manager.mjs" ]]; then
-      DEEP_READER_DATA_DIR="$DATA_DIR" DEEP_READER_RUNTIME_DIR="$RUNTIME_DIR" \
+      LENSMAP_DATA_DIR="$DATA_DIR" LENSMAP_RUNTIME_DIR="$RUNTIME_DIR" \
         "$APP_DIR/runtime/node/bin/node" "$APP_DIR/scripts/native-host-manager.mjs" install >/dev/null 2>&1 || true
     fi
   fi
@@ -70,7 +70,7 @@ fi
 rm -rf "$OLD_DIR"
 
 print ""
-print "Deep Reader was installed successfully."
+print "Lensmap was installed successfully."
 print ""
 print "Chrome setup (first installation only):"
 print "  1. Open chrome://extensions"
@@ -79,6 +79,6 @@ print "  3. Choose 'Load unpacked'"
 print "  4. Select: $EXTENSION_DIR"
 print "  5. In the extension details, enable 'Allow access to file URLs' if you read local PDFs"
 print ""
-print "For an update, run install.command from the new release and then click Reload for Deep Reader at chrome://extensions."
+print "For an update, run install.command from the new release and then click Reload for Lensmap at chrome://extensions."
 print "User data is preserved at: $DATA_DIR"
 print "Diagnostics: $APP_DIR/status.command"

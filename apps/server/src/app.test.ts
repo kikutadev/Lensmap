@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 function createTestConfig(): AppConfig {
-  tempDir = mkdtempSync(join(tmpdir(), "deep-reader-test-"));
+  tempDir = mkdtempSync(join(tmpdir(), "lensmap-test-"));
   return {
     host: "127.0.0.1",
     port: 4317,
@@ -30,7 +30,7 @@ function createTestConfig(): AppConfig {
 }
 
 function createPdfMultipart() {
-  const boundary = "----deep-reader-test-boundary";
+  const boundary = "----lensmap-test-boundary";
   const pdf = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n", "utf8");
   const payload = Buffer.concat([
     Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="sample.pdf"\r\nContent-Type: application/pdf\r\n\r\n`),
@@ -64,7 +64,7 @@ describe("server", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       status: "ok",
-      service: "deep-reader-server",
+      service: "lensmap-server",
       version: "0.1.0",
       capabilityRequired: false,
     });

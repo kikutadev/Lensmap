@@ -2,13 +2,13 @@
 set -u
 
 # Show installation, Native Messaging, Server, and persistent-data locations without starting the Server.
-BASE_DIR="$HOME/Library/Application Support/DeepReader"
+BASE_DIR="$HOME/Library/Application Support/Lensmap"
 APP_DIR="$BASE_DIR/app"
 DATA_DIR="$BASE_DIR/data"
 RUNTIME_DIR="$BASE_DIR/runtime"
 NODE="$APP_DIR/runtime/node/bin/node"
 
-print "Deep Reader installation"
+print "Lensmap installation"
 print "  App:       $APP_DIR"
 print "  Data:      $DATA_DIR"
 print "  Runtime:   $RUNTIME_DIR"
@@ -23,11 +23,11 @@ fi
 print "Bundled runtime: $($NODE --version)"
 print ""
 
-DEEP_READER_DATA_DIR="$DATA_DIR" \
-DEEP_READER_RUNTIME_DIR="$RUNTIME_DIR" \
+LENSMAP_DATA_DIR="$DATA_DIR" \
+LENSMAP_RUNTIME_DIR="$RUNTIME_DIR" \
   "$NODE" "$APP_DIR/scripts/native-host-manager.mjs" status || true
 
 print ""
-DEEP_READER_DATA_DIR="$DATA_DIR" \
-DEEP_READER_RUNTIME_DIR="$RUNTIME_DIR" \
-  "$NODE" "$APP_DIR/scripts/deep-reader-server.mjs" status || true
+LENSMAP_DATA_DIR="$DATA_DIR" \
+LENSMAP_RUNTIME_DIR="$RUNTIME_DIR" \
+  "$NODE" "$APP_DIR/scripts/lensmap-server.mjs" status || true

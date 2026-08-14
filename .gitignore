@@ -32,3 +32,6 @@ apps/server/drizzle/meta/_journal.json.tmp
 .direnv/
 release-dist/
 .release-cache/
+
+native/macos/bin/
+.tmp/

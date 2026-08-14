@@ -1,5 +1,5 @@
 {
-  "name": "@deep-reader/chrome-extension",
+  "name": "@lensmap/chrome-extension",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@deep-reader/shared": "^0.1.0",
-    "@deep-reader/visualization": "^0.1.0",
+    "@lensmap/shared": "^0.1.0",
+    "@lensmap/visualization": "^0.1.0",
     "@tanstack/react-query": "^5.101.4",
     "@xyflow/react": "^12.11.2",
     "lucide-react": "^1.31.0",

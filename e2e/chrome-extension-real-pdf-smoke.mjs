@@ -21,7 +21,7 @@ const migrationsDir = resolve(root, "apps/server/drizzle");
 const serverPort = 4517;
 const serverBase = `http://127.0.0.1:${serverPort}/api`;
 const capabilityToken = randomBytes(32).toString("base64url");
-const nodeBin = process.env.DEEP_READER_SERVER_NODE ?? process.execPath;
+const nodeBin = process.env.LENSMAP_SERVER_NODE ?? process.execPath;
 rmSync(dataDir, { recursive: true, force: true });
 
 const server = spawn(nodeBin, ["apps/server/dist/index.js"], {
@@ -29,11 +29,11 @@ const server = spawn(nodeBin, ["apps/server/dist/index.js"], {
   stdio: ["ignore", "pipe", "pipe"],
   env: {
     ...process.env,
-    DEEP_READER_DATA_DIR: dataDir,
-    DEEP_READER_MIGRATIONS_DIR: migrationsDir,
-    DEEP_READER_HOST: "127.0.0.1",
-    DEEP_READER_PORT: String(serverPort),
-    DEEP_READER_CAPABILITY_TOKEN: capabilityToken,
+    LENSMAP_DATA_DIR: dataDir,
+    LENSMAP_MIGRATIONS_DIR: migrationsDir,
+    LENSMAP_HOST: "127.0.0.1",
+    LENSMAP_PORT: String(serverPort),
+    LENSMAP_CAPABILITY_TOKEN: capabilityToken,
     CODEX_BIN: process.env.CODEX_BIN ?? "/Applications/ChatGPT.app/Contents/Resources/codex",
   },
 });
@@ -47,8 +47,8 @@ try {
   assert(worker);
   const extensionId = new URL(workerTarget.url()).host;
   await worker.evaluate(async ({ base, capabilityToken }) => {
-    await chrome.storage.local.set({ deepReaderServerBase: base });
-    await chrome.storage.session.set({ deepReaderCapabilityToken: capabilityToken });
+    await chrome.storage.local.set({ "lensmap.serverBase": base });
+    await chrome.storage.session.set({ "lensmap.capabilityToken": capabilityToken });
   }, { base: serverBase, capabilityToken });
   assert.equal(await worker.evaluate(() => chrome.extension.isAllowedFileSchemeAccess()), true);
   const probe = await browser.newPage();
@@ -84,8 +84,12 @@ try {
     }
 
     assert.equal(capture.state?.status, "ready");
-    const source = capture.state?.sources?.at(-1);
-    assert(source, "Resolved SourceAnchor was missing");
+    assert(capture.state?.workspaceId, "Capture did not resolve a Reader Workspace");
+    const workspaceResponse = await protectedFetch(`${serverBase}/workspaces/${capture.state.workspaceId}`);
+    assert(workspaceResponse.ok, "Reader Workspace could not be loaded after capture");
+    const workspace = await workspaceResponse.json();
+    const source = [...workspace.sources].reverse().find((candidate) => candidate.kind === "text" && candidate.bookId === imported.id);
+    assert(source, "Resolved SourceAnchor was missing from Reader Workspace");
     assert.equal(source.pageStart, sample.pageIndex, `${basename(pdfPath)} resolved to wrong PDF page`);
     assert(source.documentNodeIds.includes(sample.id), `${basename(pdfPath)} did not recover the original DocumentBlock`);
 

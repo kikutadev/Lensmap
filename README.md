@@ -1,29 +1,43 @@
-# Deep Reader
+# Lensmap
 
-技術書 PDF を「全文 AI に渡す」のではなく、**Chrome で読んでいる箇所を根拠に、その場で深掘りする**ためのローカル読書ツールです。
+> **気になった一節から、理解の地図をつくる。**
 
-Chrome 標準 PDF Viewer をそのまま使い、Deep Reader は Side Panel として動作します。PDF の表示・検索・ズーム・印刷・ダウンロード等は Chrome に委譲し、Deep Reader は選択箇所の再同定、書籍内検索、Codex との対話、Insight 保存に集中します。
+Lensmap は、PDF を読みながら選んだ箇所を起点に文脈を掘り、**根拠付きの理解を図解として残す**ローカル読書ツールです。
+
+Chrome 標準 PDF Viewer をそのまま使い、本文を読む体験は Chrome に委譲します。Lensmap は選択箇所を起点に必要な文脈だけを追加で探索し、対話で得た理解を後から再利用できる visual Map へ変換することに集中します。
+
+```text
+Read → Focus → Explore → Map → Return to reading
+```
+
+**AI is the lens. The map is the outcome.**
+
+詳しい製品思想は [Lensmap Concept Doc](docs/concept.md) を参照してください。
 
 ## 主な機能
 
-- Chrome 標準 PDF Viewer の選択テキストを `SourceAnchor` として保存
-- 1 回の質問に複数箇所を添付
-- 必要な場合だけ、前後 block → section → 書籍内検索へ追加参照
-- AI が追加取得した本文を user-selected source と区別して記録
-- 回答中の引用から元 PDF ページへ戻る
-- 複数の Deep Dive thread
-- 回答を `Insight` として保存し、version history と根拠を保持
-- Mermaid と allow-list 型 Visualization DSL による図解
-- PDF、索引、会話、Insight はローカル保存
+- Chrome 標準 PDF Viewer で気になった一節を参照として取り込む
+- 1 回の Explore に複数箇所を添付
+- 必要な場合だけ、前後 block → section →書籍内検索へ文脈を広げる
+- AI が追加取得した本文を user-selected reference と区別して記録
+- 回答・Mapの根拠から元 PDF ページへ戻る
+- 複数の Explore thread で問いを分けて考える
+- 正常に完了した Explore 回答を自動的に Map として保存
+- 得られた理解を図解・比較・フロー・Chart等を含む Map として残す
+- Map は version history と参照 provenance を保持
+- PDF、索引、会話、Map はローカル保存
 - `codex app-server` を stdio で利用
 
-中心となる概念は次の 3 つです。
+Lensmap の中心概念は次のように整理します。
 
 ```text
-SourceAnchor   原文の根拠
-Deep Dive      考えるための対話
-Insight        残すための知識成果物
+Passage / Reference   人が注目した原文と根拠
+Explore               問いを掘り、必要な文脈を広げる Lens
+Explore               根拠を集めながら理解を深める対話
+Map                   Exploreから自動保存される視覚的・根拠付き成果物
 ```
+
+内部domainも `SourceAnchor` / `ExploreThread` / `MapArtifact` に統一し、ユーザー体験・runtime識別子とも `Lensmap` / `Explore` / `Maps` をcanonical語彙とします。
 
 ## 構成
 
@@ -31,10 +45,10 @@ Insight        残すための知識成果物
 Chrome built-in PDF Viewer
         │ selection / context menu
         ▼
-Deep Reader Chrome Extension (WXT + React Side Panel)
+Lensmap Chrome Extension (WXT + React Side Panel)
         │ Bearer capability / localhost HTTP
         ▼
-Deep Reader Local Server (Fastify + SQLite)
+Lensmap Local Server (Fastify + SQLite)
         │ stdio / JSONL
         ▼
 codex app-server
@@ -56,19 +70,21 @@ GitHub Releases の配布版は現在 **macOS Apple Silicon (arm64)** を対象�
 
 `codex app-server` の生 protocol を Browser へ公開せず、Local Server が狭いアプリ API と read-only book tools に変換します。
 
+公開版のブランド・package・runtime・Native Messaging・ローカル保存先・Release assetは **Lensmap** を唯一の正規識別子とします。初回リリース前に旧ブランド互換レイヤーを残さないことをRelease gateとします。
+
 ## GitHub Releases からインストール
 
 Release assets から次の2ファイルを取得します。
 
 ```text
-DeepReader-<version>-macos-arm64.zip
-DeepReader-<version>-macos-arm64.zip.sha256
+Lensmap-<version>-macos-arm64.zip
+Lensmap-<version>-macos-arm64.zip.sha256
 ```
 
 必要であれば、展開前にchecksumを確認できます。
 
 ```bash
-shasum -a 256 -c DeepReader-<version>-macos-arm64.zip.sha256
+shasum -a 256 -c Lensmap-<version>-macos-arm64.zip.sha256
 ```
 
 ZIPを展開し、`install.command` を実行します。これは初回インストールとアップデートの両方に使えます。
@@ -82,45 +98,45 @@ macOSがダウンロードしたスクリプトの起動を確認する場合は
 インストール先は固定です。
 
 ```text
-~/Library/Application Support/DeepReader/app       実行ファイル（更新時に置換）
-~/Library/Application Support/DeepReader/data      PDF索引・DB等（更新時も保持）
-~/Library/Application Support/DeepReader/runtime   PID・ログ・capability
+~/Library/Application Support/Lensmap/app       実行ファイル（更新時に置換）
+~/Library/Application Support/Lensmap/data      PDF索引・DB等（更新時も保持）
+~/Library/Application Support/Lensmap/runtime   PID・ログ・capability
 ```
 
 初回のみChromeで `chrome://extensions` を開き、次の操作を行います。
 
 1. Developer mode を有効化
 2. `Load unpacked` / 「パッケージ化されていない拡張機能を読み込む」
-3. `~/Library/Application Support/DeepReader/app/apps/chrome-extension/.output/chrome-mv3` を選択
-4. ローカルPDFを読む場合はDeep Readerの詳細画面で **Allow access to file URLs** を有効化
+3. `~/Library/Application Support/Lensmap/app/apps/chrome-extension/.output/chrome-mv3` を選択
+4. ローカルPDFを読む場合はLensmapの詳細画面で **Allow access to file URLs** を有効化
 
 Extension IDはmanifestの公開鍵で固定しているため、Release更新でもNative Messagingの許可originは変わりません。
 
 ### アップデート
 
-新しいRelease ZIPを展開し、同じ `install.command` を実行します。`data` は置換されません。完了後、`chrome://extensions` でDeep Readerの **Reload** をクリックしてください。Extensionの参照パス自体は変わりません。
+新しいRelease ZIPを展開し、同じ `install.command` を実行します。`data` は置換されません。完了後、`chrome://extensions` でLensmapの **Reload** をクリックしてください。Extensionの参照パス自体は変わりません。
 
 ### 診断
 
 インストール済みの状態は次で確認できます。
 
 ```bash
-~/Library/Application\ Support/DeepReader/app/status.command
+~/Library/Application\ Support/Lensmap/app/status.command
 ```
 
 ### アンインストール
 
 ```bash
-~/Library/Application\ Support/DeepReader/app/uninstall.command
+~/Library/Application\ Support/Lensmap/app/uninstall.command
 ```
 
-既定では読書データを `~/Library/Application Support/DeepReader/data` に残します。データも削除する場合だけ次を使用します。
+既定では読書データを `~/Library/Application Support/Lensmap/data` に残します。データも削除する場合だけ次を使用します。
 
 ```bash
-DEEP_READER_PURGE_DATA=1 ~/Library/Application\ Support/DeepReader/app/uninstall.command
+LENSMAP_PURGE_DATA=1 ~/Library/Application\ Support/Lensmap/app/uninstall.command
 ```
 
-最後に `chrome://extensions` からDeep Readerを削除してください。
+最後に `chrome://extensions` からLensmapを削除してください。
 
 ## 開発セットアップ
 
@@ -138,7 +154,7 @@ Chrome の `chrome://extensions` でデベロッパーモードを有効にし�
 apps/chrome-extension/.output/chrome-mv3
 ```
 
-以後は PDF を Chrome で開き、本文を選択してコンテキストメニューから Deep Reader を起動できます。
+以後は PDF を Chrome で開き、本文を選択してコンテキストメニューから Lensmap を起動できます。
 
 開発時は次で Server と WXT を同時起動できます。
 
@@ -179,7 +195,7 @@ npm run e2e:extension:live
 npm run e2e:extension:real -- /path/to/book.pdf
 ```
 
-`e2e:extension:live` は実 Codex App Server を利用して、PDF import/index、selection 再同定、AI 追加参照、citation navigation、Insight、複数 thread、複数 tab、Cookie 認証 PDF、`file://` PDF、Server 障害表示まで Headless Chrome で検証します。
+`e2e:extension:live` は実 Codex App Server を利用して、PDF import/index、selection 再同定、Workspace横断追加参照、citation navigation、Map自動保存、複数Explore thread、複数tab、Cookie 認証 PDF、`file://` PDF、Server 障害表示まで Headless Chrome で検証します。
 
 
 ## GitHub Release成果物の作成
@@ -194,8 +210,8 @@ npm run release:build
 生成物:
 
 ```text
-release-dist/DeepReader-<version>-macos-arm64.zip
-release-dist/DeepReader-<version>-macos-arm64.zip.sha256
+release-dist/Lensmap-<version>-macos-arm64.zip
+release-dist/Lensmap-<version>-macos-arm64.zip.sha256
 ```
 
 Release builderは生成されたbundleを同梱Nodeで実際にServer起動→health確認→停止するself-testまで実行します。`release-dist/` とNode runtime cacheはGit管理対象外です。
@@ -205,9 +221,9 @@ GitHub Releaseには上記ZIPとchecksumを添付すればよく、Chrome Web St
 ```bash
 VERSION=$(node -p "require('./package.json').version")
 gh release create "v${VERSION}" \
-  "release-dist/DeepReader-${VERSION}-macos-arm64.zip" \
-  "release-dist/DeepReader-${VERSION}-macos-arm64.zip.sha256" \
-  --title "Deep Reader v${VERSION}" \
+  "release-dist/Lensmap-${VERSION}-macos-arm64.zip" \
+  "release-dist/Lensmap-${VERSION}-macos-arm64.zip.sha256" \
+  --title "Lensmap v${VERSION}" \
   --generate-notes
 ```
 
@@ -230,10 +246,12 @@ assets/               branding / release artwork
 
 ## ドキュメント
 
+- [Lensmap Concept Doc](docs/concept.md)
+- [Lensmap Design System](docs/design-system.md)
 - [製品仕様](docs/product-spec.md)
 - [アーキテクチャ](docs/architecture.md)
 - [UI・可視化仕様](docs/ui-and-visualization.md)
-- [Insight / Context Retrieval仕様](docs/insights-and-context-retrieval.md)
+- [Maps / Context Retrieval仕様](docs/maps-and-context-retrieval.md)
 
 完了済みの実装計画、移行評価、自己レビュー記録は現行仕様へ反映後、公開リポジトリには保持しません。Git history が変更履歴の正本です。
 
@@ -261,6 +279,6 @@ npm run icons:generate
 生成先:
 
 - Chrome Extension: `apps/chrome-extension/public/icons/icon-{16,32,48,128}.png`
-- Release artwork: `assets/release/deep-reader-icon-{256,512,1024}.png`
+- Release artwork: `assets/release/lensmap-icon-{256,512,1024}.png`
 
 生成時に原本の黒い外周マットを透明化してから縮小します。

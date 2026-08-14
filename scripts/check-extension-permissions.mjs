@@ -8,11 +8,15 @@ const manifestPath = resolve("apps/chrome-extension/.output/chrome-mv3/manifest.
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const permissions = [...(manifest.permissions ?? [])].sort();
 const hosts = [...(manifest.host_permissions ?? [])].sort();
+const optionalHosts = [...(manifest.optional_host_permissions ?? [])].sort();
 
 assert.deepEqual(permissions, ["activeTab", "contextMenus", "nativeMessaging", "sidePanel", "storage"].sort(),
   `Unexpected extension permissions: ${permissions.join(", ")}`);
 assert.deepEqual(hosts, ["file:///*", "http://127.0.0.1/*"].sort(),
   `Unexpected extension host permissions: ${hosts.join(", ")}`);
+assert.deepEqual(optionalHosts, ["<all_urls>"].sort(),
+  `Unexpected optional host permissions: ${optionalHosts.join(", ")}`);
+assert(!hosts.includes("<all_urls>"), "Visual Capture must not require global host access at install time.");
 assert(!permissions.includes("tabs"), "The broad tabs permission must not be reintroduced without a documented review.");
 
 const expectedIcons = {
@@ -27,4 +31,4 @@ for (const iconPath of Object.values(expectedIcons)) {
   assert(existsSync(resolve("apps/chrome-extension/.output/chrome-mv3", iconPath)), `Built extension icon is missing: ${iconPath}`);
 }
 
-console.log(JSON.stringify({ permissions, hostPermissions: hosts, icons: expectedIcons }, null, 2));
+console.log(JSON.stringify({ permissions, hostPermissions: hosts, optionalHostPermissions: optionalHosts, icons: expectedIcons }, null, 2));

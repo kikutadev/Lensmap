@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import multipart from "@fastify/multipart";
-import { bookSchema } from "@deep-reader/shared";
+import { bookSchema } from "@lensmap/shared";
 import type { BookService } from "../books/book-service.js";
 
 interface BookRouteOptions {

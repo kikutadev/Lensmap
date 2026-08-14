@@ -22,6 +22,10 @@ export class SourceAnchorRepository {
     return this.db.select().from(sourceAnchors).where(eq(sourceAnchors.id, id)).get();
   }
 
+  public findByImageAssetId(imageAssetId: string): SourceAnchorRecord | undefined {
+    return this.db.select().from(sourceAnchors).where(eq(sourceAnchors.imageAssetId, imageAssetId)).get();
+  }
+
   public findByIds(ids: string[]): SourceAnchorRecord[] {
     if (ids.length === 0) return [];
     return this.db.select().from(sourceAnchors).where(inArray(sourceAnchors.id, ids)).all();
@@ -34,6 +38,7 @@ export class SourceAnchorRepository {
       .from(sourceAnchors)
       .where(and(
         eq(sourceAnchors.bookId, bookId),
+        eq(sourceAnchors.kind, "text"),
         eq(sourceAnchors.pageStart, pageStart),
         eq(sourceAnchors.textHash, textHash),
         eq(sourceAnchors.origin, "ai-expansion"),

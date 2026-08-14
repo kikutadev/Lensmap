@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lensmap · 範囲を選択</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main id="app" class="capture-app">
+    <header class="capture-toolbar">
+      <div>
+        <strong>範囲を選択</strong>
+        <span>図・表・数式など、根拠として残したい領域をドラッグしてください。</span>
+      </div>
+      <div class="capture-actions">
+        <button id="cancel" type="button" class="secondary">キャンセル</button>
+        <button id="save" type="button" disabled>参照に追加</button>
+      </div>
+    </header>
+    <section id="surface" class="capture-surface" aria-label="Visual Source capture surface">
+      <div id="loading" class="capture-message">画面を準備しています…</div>
+      <img id="capture-image" alt="キャプチャしたPDF表示領域" draggable="false" hidden />
+      <div id="selection" class="selection-rect" hidden></div>
+    </section>
+    <div id="status" class="capture-status" role="status"></div>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

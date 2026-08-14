@@ -12,12 +12,12 @@ const books = {
     ["Chapter C - Unique", "Only the third chapter has this unique sentence."],
   ]),
   "/auth/book.pdf": createPdf([
-    ["Authenticated Chapter", "Authenticated PDF content remains readable through the Deep Reader extension."],
+    ["Authenticated Chapter", "Authenticated PDF content remains readable through the Lensmap extension."],
     ["Authenticated Details", "The browser cookie is required when the extension refetches this PDF."],
   ]),
 };
 
-const port = Number.parseInt(process.env.DEEP_READER_PDF_PORT ?? "9876", 10);
+const port = Number.parseInt(process.env.LENSMAP_PDF_PORT ?? "9876", 10);
 
 createServer((req, res) => {
   if (!req.url) return writeText(res, 400, "Missing URL");
@@ -26,14 +26,14 @@ createServer((req, res) => {
   if (url.pathname === "/auth/login") {
     res.writeHead(302, {
       location: "/auth/book.pdf",
-      "set-cookie": "deep_reader_auth=ok; Path=/auth; HttpOnly; SameSite=Lax",
+      "set-cookie": "lensmap_auth=ok; Path=/auth; HttpOnly; SameSite=Lax",
       "cache-control": "no-store",
     });
     res.end();
     return;
   }
 
-  if (url.pathname === "/auth/book.pdf" && !String(req.headers.cookie ?? "").includes("deep_reader_auth=ok")) {
+  if (url.pathname === "/auth/book.pdf" && !String(req.headers.cookie ?? "").includes("lensmap_auth=ok")) {
     writeText(res, 401, "Authentication required");
     return;
   }

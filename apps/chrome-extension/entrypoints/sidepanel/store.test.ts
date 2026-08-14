@@ -1,53 +1,50 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { emptyTabState } from "../../lib/state";
-import { useSidePanelStore } from "./store";
+import { emptyWorkspaceTransientState, useSidePanelStore } from "./store";
 
 beforeEach(() => {
   useSidePanelStore.setState({
     activeTabId: null,
     tabState: null,
-    lastAssistant: null,
-    transientByTab: {},
-    view: "chat",
+    activeWorkspaceId: null,
+    transientByWorkspace: {},
+    view: "explore",
   });
 });
 
-describe("side panel transient state", () => {
-  it("keeps streaming and composer state isolated by tab", () => {
+describe("side panel Workspace store", () => {
+  it("isolates drafts and streaming state by Workspace rather than Chrome tab", () => {
     const store = useSidePanelStore.getState();
-    store.setTabState({ ...emptyTabState(1), pdfUrl: "https://example.com/a.pdf", status: "ready" });
-    store.setStreamState(1, "streaming", "answer A");
-    store.setComposerDraft(1, "question A");
-
-    store.setTabState({ ...emptyTabState(2), pdfUrl: "https://example.com/b.pdf", status: "ready" });
-    store.setStreamState(2, "streaming", "answer B");
-    store.setComposerDraft(2, "question B");
+    store.setComposerDraft("workspace-a", "question A");
+    store.setStreamState("workspace-a", "streaming", "answer A");
+    store.setComposerDraft("workspace-b", "question B");
+    store.setStreamState("workspace-b", "idle", "");
 
     const state = useSidePanelStore.getState();
-    expect(state.transientByTab["1"]?.streamingContent).toBe("answer A");
-    expect(state.transientByTab["1"]?.composerDraft).toBe("question A");
-    expect(state.transientByTab["2"]?.streamingContent).toBe("answer B");
-    expect(state.transientByTab["2"]?.composerDraft).toBe("question B");
+    expect(state.transientByWorkspace["workspace-a"]?.composerDraft).toBe("question A");
+    expect(state.transientByWorkspace["workspace-a"]?.streamingContent).toBe("answer A");
+    expect(state.transientByWorkspace["workspace-b"]?.composerDraft).toBe("question B");
   });
 
-  it("resets transient UI when the document changes inside the same tab", () => {
+  it("keeps Workspace transient state while the active Chrome tab changes", () => {
     const store = useSidePanelStore.getState();
-    store.setTabState({ ...emptyTabState(3), pdfUrl: "https://example.com/a.pdf", status: "ready" });
-    store.setStreamState(3, "error", "old error");
-    store.setComposerDraft(3, "old draft");
-    store.setSelectedInsightId(3, "insight-a");
-    store.setActionError(3, "old action error");
+    store.setActiveWorkspaceId("workspace-a");
+    store.setComposerDraft("workspace-a", "keep me");
+    store.setActiveThreadId("workspace-a", "thread-a");
+    store.setSelectedMapId("workspace-a", "map-a");
+    store.setModelOverride("workspace-a", "gpt-5.6-sol");
+    store.setActiveTabId(10);
+    store.setActiveTabId(20);
 
-    useSidePanelStore.getState().setTabState({ ...emptyTabState(3), pdfUrl: "https://example.com/b.pdf", status: "importing" });
-
-    const transient = useSidePanelStore.getState().transientByTab["3"];
-    expect(transient).toMatchObject({
-      documentKey: "https://example.com/b.pdf",
-      streamStatus: "idle",
-      streamingContent: "",
-      composerDraft: "",
-      selectedInsightId: null,
-      actionError: null,
+    expect(useSidePanelStore.getState().transientByWorkspace["workspace-a"]).toMatchObject({
+      composerDraft: "keep me",
+      activeThreadId: "thread-a",
+      selectedMapId: "map-a",
+      modelOverride: "gpt-5.6-sol",
     });
+  });
+
+  it("creates a clean transient state for a newly selected Workspace", () => {
+    useSidePanelStore.getState().setActiveWorkspaceId("workspace-new");
+    expect(useSidePanelStore.getState().transientByWorkspace["workspace-new"]).toEqual(emptyWorkspaceTransientState());
   });
 });
