@@ -1,8 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import {
-  codexLoginResponseSchema,
-  codexStatusResponseSchema,
-} from "@deep-reader/shared";
+import { codexStatusResponseSchema } from "@deep-reader/shared";
 import type { CodexAppServerClient } from "../codex/app-server-client.js";
 
 interface CodexRouteOptions {
@@ -63,20 +60,4 @@ export const codexRoutes: FastifyPluginAsync<CodexRouteOptions> = async (app, op
     }
   });
 
-  app.post("/login/chatgpt", async (_request, reply) => {
-    try {
-      const result = await options.codex.startChatGptLogin();
-      if (result.type !== "chatgpt") {
-        return reply.code(500).send({ message: `Unexpected login response: ${result.type}` });
-      }
-      return codexLoginResponseSchema.parse({
-        loginId: result.loginId,
-        authUrl: result.authUrl,
-      });
-    } catch (error: unknown) {
-      return reply.code(500).send({
-        message: error instanceof Error ? error.message : "ChatGPT login could not be started",
-      });
-    }
-  });
 };

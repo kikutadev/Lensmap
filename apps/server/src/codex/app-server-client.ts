@@ -6,7 +6,6 @@ import {
   dynamicToolCallParamsSchema,
   getAccountResponseSchema,
   initializeResponseSchema,
-  loginAccountResponseSchema,
   modelListResponseSchema,
   serverNotificationEnvelopeSchema,
   threadResumeResponseSchema,
@@ -16,7 +15,6 @@ import {
   type DynamicToolCallParams,
   type GetAccountResponse,
   type InitializeResponse,
-  type LoginAccountResponse,
   type ModelListResponse,
   type ServerNotificationEnvelope,
   type ThreadResumeResponse,
@@ -145,15 +143,6 @@ export class CodexAppServerClient extends EventEmitter {
     return modelListResponseSchema.parse(await this.request("model/list", {}));
   }
 
-  public async startChatGptLogin(): Promise<LoginAccountResponse> {
-    await this.start();
-    const result = await this.request("account/login/start", {
-      type: "chatgpt",
-      codexStreamlinedLogin: true,
-      useHostedLoginSuccessPage: true,
-    });
-    return loginAccountResponseSchema.parse(result);
-  }
 
   /** Start a persistent Codex thread locked to Deep Reader's read-only tool surface. */
   public async startReaderThread(

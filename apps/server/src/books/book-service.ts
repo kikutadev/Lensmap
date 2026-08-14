@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream, createWriteStream, mkdirSync, renameSync, rmSync } from "node:fs";
+import { createWriteStream, mkdirSync, renameSync, rmSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { once } from "node:events";
 import type { MultipartFile } from "@fastify/multipart";
@@ -98,10 +98,6 @@ export class BookService {
     }
   }
 
-  public openPdf(id: string) {
-    const path = this.getPdfPath(id);
-    return path ? createReadStream(path) : undefined;
-  }
 }
 
 function toPublicBook(book: ReturnType<BookRepository["findById"]> extends infer T ? Exclude<T, undefined> : never): ImportedBook {

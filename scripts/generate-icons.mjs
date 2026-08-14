@@ -6,7 +6,7 @@ import process from "node:process";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 
 const root = process.cwd();
-const sourcePath = resolve(root, process.argv[2] ?? "Icon.png");
+const sourcePath = resolve(root, process.argv[2] ?? "assets/branding/icon-source.png");
 const extensionDir = resolve(root, "apps/chrome-extension/public/icons");
 const releaseDir = resolve(root, "assets/release");
 const extensionSizes = [16, 32, 48, 128];

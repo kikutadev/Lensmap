@@ -35,7 +35,7 @@ Deep Reader intentionally uses a narrow local architecture:
 - arbitrary PDF websites are accessed through the temporary `activeTab` grant rather than persistent `<all_urls>` access;
 - local PDF access requires the user to explicitly enable Chrome's file-URL access for the extension.
 
-The standalone development server may be run without a capability token for local development and isolated tests. Do not expose that development mode to untrusted networks.
+Direct development/test server startup may run without a capability token unless `DEEP_READER_CAPABILITY_TOKEN` is explicitly configured. This mode is for local development and isolated tests only; do not expose it to untrusted networks.
 
 ## Out of scope
 

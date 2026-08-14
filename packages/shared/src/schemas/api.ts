@@ -39,13 +39,8 @@ export const codexStatusResponseSchema = z.object({
   error: z.string().nullable(),
 });
 
-export const codexLoginResponseSchema = z.object({
-  loginId: z.string(),
-  authUrl: z.string().url(),
-});
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export type CodexModelSummary = z.infer<typeof codexModelSummarySchema>;
 export type CodexAccountSummary = z.infer<typeof codexAccountSummarySchema>;
 export type CodexStatusResponse = z.infer<typeof codexStatusResponseSchema>;
-export type CodexLoginResponse = z.infer<typeof codexLoginResponseSchema>;

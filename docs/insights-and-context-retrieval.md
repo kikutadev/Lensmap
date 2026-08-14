@@ -260,7 +260,7 @@ Layer 3: retrieval index layer
 
 ### 6.1 Physical layer
 
-PDF.js の text item と座標を保持する。
+Server側の `pdfjs-dist` 抽出結果として text item と座標を保持する。
 
 目的:
 
@@ -505,17 +505,17 @@ Artifact * <-> * Turn (origin/provenance)
 ## 13. 採用済み関連技術
 
 - PDF: `pdfjs-dist`
-- UI: Tailwind CSS + shadcn/ui
+- UI: WXT + React Side Panel
 - Markdown: AST ベースの custom renderer
 - Mermaid: Mermaid
 - Flow / node graph: `@xyflow/react`
 - Chart: Recharts
 - Visualization validation: Zod
 - Server state: TanStack Query
-- Reader / transient UI state: Zustand
+- Side Panel transient UI state: Zustand
 - DB: SQLite + Drizzle
 - Local full-text search: SQLite FTS5 (`unicode61` + `trigram`) + substring fallback
-- Test: Vitest + Playwright
+- Test: Vitest + Puppeteer / Headless Chrome E2E
 
 Chart DSL は次の形を基本とする。
 

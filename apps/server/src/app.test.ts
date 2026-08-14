@@ -94,10 +94,6 @@ describe("server", () => {
     const library = await app.inject({ method: "GET", url: "/api/books" });
     expect(library.json<unknown[]>()).toHaveLength(1);
 
-    const pdfResponse = await app.inject({ method: "GET", url: `/api/books/${firstBook.id}/pdf` });
-    expect(pdfResponse.statusCode).toBe(200);
-    expect(pdfResponse.headers["content-type"]).toContain("application/pdf");
-    expect(pdfResponse.rawPayload.equals(multipart.pdf)).toBe(true);
   });
 
   it("persists multiple immutable source anchors for one book", async () => {

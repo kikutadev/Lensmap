@@ -34,18 +34,6 @@ export const modelListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
-export const loginAccountResponseSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("apiKey") }),
-  z.object({ type: z.literal("chatgpt"), loginId: z.string(), authUrl: z.string().url() }),
-  z.object({
-    type: z.literal("chatgptDeviceCode"),
-    loginId: z.string(),
-    verificationUrl: z.string().url(),
-    userCode: z.string(),
-  }),
-  z.object({ type: z.literal("chatgptAuthTokens") }),
-  z.object({ type: z.literal("amazonBedrock") }),
-]);
 
 const threadSummarySchema = z.object({
   id: z.string(),
@@ -103,7 +91,6 @@ export type ConfigReadResponse = z.infer<typeof configReadResponseSchema>;
 export type InitializeResponse = z.infer<typeof initializeResponseSchema>;
 export type GetAccountResponse = z.infer<typeof getAccountResponseSchema>;
 export type ModelListResponse = z.infer<typeof modelListResponseSchema>;
-export type LoginAccountResponse = z.infer<typeof loginAccountResponseSchema>;
 export type ThreadStartResponse = z.infer<typeof threadStartResponseSchema>;
 export type ThreadResumeResponse = z.infer<typeof threadResumeResponseSchema>;
 export type TurnStartResponse = z.infer<typeof turnStartResponseSchema>;

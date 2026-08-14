@@ -1,10 +1,5 @@
 node_modules/
 dist/
-coverage/
-playwright-report/
-test-results/
-.e2e-data/
-.e2e-artifacts/
 .env
 .env.*
 !.env.example
@@ -13,9 +8,8 @@ apps/server/data/
 apps/server/drizzle/meta/_journal.json.tmp
 .DS_Store
 *.log
-apps/server/src/codex/generated/
+.e2e-artifacts/
 .extension-e2e-data/
-.extension-poc-data/
 .wxt/
 .output/
 .extension-e2e-local.pdf

@@ -34,13 +34,4 @@ export const bookRoutes: FastifyPluginAsync<BookRouteOptions> = async (app, opti
     }
   });
 
-  app.get<{ Params: { bookId: string } }>("/:bookId/pdf", async (request, reply) => {
-    const stream = options.bookService.openPdf(request.params.bookId);
-    if (!stream) {
-      return reply.code(404).send({ message: "Book not found" });
-    }
-
-    reply.type("application/pdf");
-    return reply.send(stream);
-  });
 };

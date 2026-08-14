@@ -15,7 +15,6 @@
     "@deep-reader/visualization": "^0.1.0",
     "@fastify/cors": "^11.3.0",
     "@fastify/multipart": "^10.1.0",
-    "@fastify/websocket": "^11.3.0",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.11.3",
