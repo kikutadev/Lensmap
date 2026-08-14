@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { readFileSync, rmSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -19,6 +20,7 @@ const dataDir = resolve(root, ".extension-real-pdf-data");
 const migrationsDir = resolve(root, "apps/server/drizzle");
 const serverPort = 4517;
 const serverBase = `http://127.0.0.1:${serverPort}/api`;
+const capabilityToken = randomBytes(32).toString("base64url");
 const nodeBin = process.env.DEEP_READER_SERVER_NODE ?? process.execPath;
 rmSync(dataDir, { recursive: true, force: true });
 
@@ -31,6 +33,7 @@ const server = spawn(nodeBin, ["apps/server/dist/index.js"], {
     DEEP_READER_MIGRATIONS_DIR: migrationsDir,
     DEEP_READER_HOST: "127.0.0.1",
     DEEP_READER_PORT: String(serverPort),
+    DEEP_READER_CAPABILITY_TOKEN: capabilityToken,
     CODEX_BIN: process.env.CODEX_BIN ?? "/Applications/ChatGPT.app/Contents/Resources/codex",
   },
 });
@@ -43,7 +46,10 @@ try {
   const worker = await workerTarget.worker();
   assert(worker);
   const extensionId = new URL(workerTarget.url()).host;
-  await worker.evaluate(async (base) => chrome.storage.local.set({ deepReaderServerBase: base }), serverBase);
+  await worker.evaluate(async ({ base, capabilityToken }) => {
+    await chrome.storage.local.set({ deepReaderServerBase: base });
+    await chrome.storage.session.set({ deepReaderCapabilityToken: capabilityToken });
+  }, { base: serverBase, capabilityToken });
   assert.equal(await worker.evaluate(() => chrome.extension.isAllowedFileSchemeAccess()), true);
   const probe = await browser.newPage();
   await probe.goto(`chrome-extension://${extensionId}/probe.html`);
@@ -104,10 +110,10 @@ try {
 async function importAndIndex(pdfPath) {
   const form = new FormData();
   form.append("file", new File([readFileSync(pdfPath)], basename(pdfPath), { type: "application/pdf" }));
-  const importResponse = await fetch(`${serverBase}/books/import`, { method: "POST", body: form });
+  const importResponse = await protectedFetch(`${serverBase}/books/import`, { method: "POST", body: form });
   if (!importResponse.ok) throw new Error(await importResponse.text());
   const book = await importResponse.json();
-  const indexResponse = await fetch(`${serverBase}/books/${book.id}/document/index`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ force: false }) });
+  const indexResponse = await protectedFetch(`${serverBase}/books/${book.id}/document/index`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ force: false }) });
   if (!indexResponse.ok) throw new Error(await indexResponse.text());
   const status = await indexResponse.json();
   assert.equal(status.status, "indexed");
@@ -116,18 +122,25 @@ async function importAndIndex(pdfPath) {
 
 async function findUniqueParagraph(bookId, pageCount) {
   for (let pageIndex = 2; pageIndex < Math.min(pageCount, 40); pageIndex += 1) {
-    const response = await fetch(`${serverBase}/books/${bookId}/document/pages/${pageIndex}/blocks`);
+    const response = await protectedFetch(`${serverBase}/books/${bookId}/document/pages/${pageIndex}/blocks`);
     assert(response.ok);
     const blocks = await response.json();
     for (const block of blocks) {
       if (block.kind !== "paragraph" || block.textRaw.length < 80 || block.textRaw.length > 500) continue;
-      const resolution = await fetch(`${serverBase}/books/${bookId}/sources/resolve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteRaw: block.textRaw }) });
+      const resolution = await protectedFetch(`${serverBase}/books/${bookId}/sources/resolve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ quoteRaw: block.textRaw }) });
       if (!resolution.ok) continue;
       const data = await resolution.json();
       if (data.candidates.length === 1 && data.candidates[0].pageStart === pageIndex) return block;
     }
   }
   return null;
+}
+
+
+async function protectedFetch(url, init = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("authorization", `Bearer ${capabilityToken}`);
+  return fetch(url, { ...init, headers });
 }
 
 async function waitForHttp(url, timeoutMs) {

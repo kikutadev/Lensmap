@@ -28,14 +28,14 @@ import {
   type ResolveSelectionResponse,
   type SourceAnchor,
 } from "@deep-reader/shared";
-import { getBookUrlCache, getServerBase, setBookUrlCache } from "./state";
+import { clearCapabilityToken, getBookUrlCache, getCapabilityToken, getServerBase, setBookUrlCache } from "./state";
+import { requestServerStartup } from "./request-server-startup";
 
 const MAX_PDF_BYTES = 512 * 1024 * 1024;
 const PDF_MAGIC = "%PDF-";
 
 export async function apiJson<T>(path: string, init: RequestInit | undefined, parse: (value: unknown) => T): Promise<T> {
-  const serverBase = await getServerBase();
-  const response = await fetch(`${serverBase}${path}`, init);
+  const response = await serverFetch(path, init);
   const text = await response.text();
   let body: unknown = null;
   try {
@@ -175,8 +175,7 @@ export async function streamChatTurn(
   input: { bookId: string; question: string; sourceIds: string[]; threadId?: string | null },
   onEvent: (event: ChatTurnStreamEvent) => void,
 ): Promise<void> {
-  const serverBase = await getServerBase();
-  const response = await fetch(`${serverBase}/books/${encodeURIComponent(input.bookId)}/chat/turns`, {
+  const response = await serverFetch(`/books/${encodeURIComponent(input.bookId)}/chat/turns`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -243,6 +242,36 @@ export async function fetchInsightVersion(artifactId: string, version: number, s
 
 export async function fetchInsightDiff(artifactId: string, fromVersion: number, toVersion: number, signal?: AbortSignal): Promise<InsightVersionDiffResponse> {
   return apiJson(`/insights/${encodeURIComponent(artifactId)}/diff?from=${fromVersion}&to=${toVersion}`, signal ? { signal } : undefined, (value) => insightVersionDiffResponseSchema.parse(value));
+}
+
+
+/** Fetch the loopback API with the session-only capability, refreshing it once after a server restart. */
+async function serverFetch(path: string, init: RequestInit | undefined): Promise<Response> {
+  const serverBase = await getServerBase();
+  const signal = init?.signal ?? undefined;
+  let capabilityToken = await getCapabilityToken();
+  if (!capabilityToken) {
+    await requestServerStartup(signal);
+    capabilityToken = await getCapabilityToken();
+  }
+  if (!capabilityToken) throw new Error("Deep Reader Serverの接続権限を取得できませんでした");
+
+  let response = await fetch(`${serverBase}${path}`, withCapability(init, capabilityToken));
+  if (response.status !== 401) return response;
+
+  // The server may have restarted and rotated its capability while Chrome remained open.
+  await clearCapabilityToken();
+  await requestServerStartup(signal);
+  capabilityToken = await getCapabilityToken();
+  if (!capabilityToken) return response;
+  response = await fetch(`${serverBase}${path}`, withCapability(init, capabilityToken));
+  return response;
+}
+
+function withCapability(init: RequestInit | undefined, capabilityToken: string): RequestInit {
+  const headers = new Headers(init?.headers);
+  headers.set("authorization", `Bearer ${capabilityToken}`);
+  return { ...init, headers };
 }
 
 function fileNameFromUrl(value: string): string {

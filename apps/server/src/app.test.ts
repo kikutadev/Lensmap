@@ -66,6 +66,7 @@ describe("server", () => {
       status: "ok",
       service: "deep-reader-server",
       version: "0.1.0",
+      capabilityRequired: false,
     });
   });
 

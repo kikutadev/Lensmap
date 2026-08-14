@@ -1,5 +1,6 @@
 /* global console, AbortController, setTimeout, clearTimeout, fetch */
-import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtimeDir = resolve(root, ".runtime");
 const pidFile = resolve(runtimeDir, "server.pid");
 const logFile = resolve(runtimeDir, "server.log");
+const capabilityTokenFile = resolve(runtimeDir, "capability-token");
 const serverEntry = resolve(root, "apps/server/dist/index.js");
 const dataDir = resolve(root, "apps/server/data");
 const migrationsDir = resolve(root, "apps/server/drizzle");
@@ -55,6 +57,7 @@ async function start() {
   }
 
   const codexBin = resolveCodexBin();
+  const capabilityToken = rotateCapabilityToken();
   const logFd = openSync(logFile, "a");
   const child = spawn(process.execPath, [serverEntry], {
     cwd: root,
@@ -67,6 +70,7 @@ async function start() {
       DEEP_READER_DATA_DIR: dataDir,
       DEEP_READER_MIGRATIONS_DIR: migrationsDir,
       ...(codexBin ? { CODEX_BIN: codexBin } : {}),
+      DEEP_READER_CAPABILITY_TOKEN: capabilityToken,
     },
   });
   child.unref();
@@ -96,13 +100,15 @@ async function stop() {
   }
   if (isRunning(pid)) process.kill(pid, "SIGKILL");
   rmSync(pidFile, { force: true });
+  rmSync(capabilityTokenFile, { force: true });
   console.log("Deep Reader Server stopped.");
 }
 
 async function status() {
   const pid = readPid();
+  const capabilityToken = readCapabilityToken();
   const health = await fetchJson(`${serverBase}/health`, 2_000);
-  const codex = health ? await fetchJson(`${serverBase}/codex/status`, 4_000) : null;
+  const codex = health ? await fetchJson(`${serverBase}/codex/status`, 4_000, capabilityToken) : null;
   console.log(JSON.stringify({
     running: Boolean(health),
     pid: pid && isRunning(pid) ? pid : null,
@@ -115,9 +121,27 @@ async function status() {
       defaultModel: codex.models?.find((model) => model.isDefault)?.id ?? null,
       error: codex.error ?? null,
     } : null,
+    capabilityProtected: Boolean(health?.capabilityRequired),
+    capabilityAvailable: Boolean(capabilityToken),
     logFile,
   }, null, 2));
   if (!health) process.exitCode = 1;
+}
+
+
+/** Rotate the production loopback capability on each server process start. */
+function rotateCapabilityToken() {
+  const token = randomBytes(32).toString("base64url");
+  writeFileSync(capabilityTokenFile, `${token}\n`, { encoding: "utf8", mode: 0o600 });
+  chmodSync(capabilityTokenFile, 0o600);
+  return token;
+}
+
+/** Read the current capability without ever printing it to stdout or logs. */
+function readCapabilityToken() {
+  if (!existsSync(capabilityTokenFile)) return null;
+  const token = readFileSync(capabilityTokenFile, "utf8").trim();
+  return token || null;
 }
 
 function resolveCodexBin() {
@@ -151,11 +175,14 @@ async function waitForHealth(timeoutMs) {
   return false;
 }
 
-async function fetchJson(url, timeoutMs) {
+async function fetchJson(url, timeoutMs, capabilityToken = null) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      ...(capabilityToken ? { headers: { authorization: `Bearer ${capabilityToken}` } } : {}),
+    });
     if (!response.ok) return null;
     return await response.json();
   } catch {

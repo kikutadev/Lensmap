@@ -359,11 +359,10 @@ nativeMessaging
 
 ```text
 http://127.0.0.1/*
-http://localhost/*
 file:///*
 ```
 
-localhostはDeep Reader Server用。任意Web PDFはcontext menuという明示的ユーザー操作と`activeTab` grantを前提にする。
+127.0.0.1はDeep Reader Server専用。任意Web PDFはcontext menuという明示的ユーザー操作と`activeTab` grantを前提にする。
 
 ---
 

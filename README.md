@@ -110,6 +110,7 @@ AI はユーザーが選択した SourceAnchor から開始し、不足する場
 - [実装前設計決定](docs/06_design_decisions.md)
 - [自己レビュー改善計画](docs/07_review_remediation_plan.md)
 - [Chrome標準PDF Viewer + Side Panel評価](docs/08_chrome_pdf_extension_evaluation.md)
+- [Release Security / Chrome Permission Review](docs/09_release_security_and_permissions.md)
 
 ## 現在の状態
 
@@ -139,7 +140,7 @@ PDF import
 
 ### 普段使い（production）
 
-Chromeには `apps/chrome-extension/.output/chrome-mv3` を一度だけ「パッケージ化されていない拡張機能」として読み込みます。日常利用ではWXT dev serverも、Macログイン時のServer常駐も不要です。
+配布はChrome Web Storeではなく **GitHub Releases** を前提にします。現時点の開発ツリーでは、Chromeに `apps/chrome-extension/.output/chrome-mv3` を一度だけ「パッケージ化されていない拡張機能」として読み込みます。日常利用ではWXT dev serverも、Macログイン時のServer常駐も不要です。
 
 初回セットアップ時だけproduction buildとNative Messaging Hostの登録を行います。
 
@@ -154,15 +155,16 @@ npm run native-host:install
 npm run native-host:status
 ```
 
-以後は、Deep Reader Side Panelを開くかPDFの選択メニューからDeep Readerを使った時点で、Extensionが `http://127.0.0.1:4317/api/health` を確認します。Serverが停止していればChrome Native Messaging経由で `com.deepreader.launcher` を起動し、既存のproduction Server controllerを使ってDeep Reader Serverをオンデマンド起動します。すでに起動済みなら何もしません。
+以後は、Deep Reader Side Panelを開くかPDFの選択メニューからDeep Readerを使った時点で、Extensionが `http://127.0.0.1:4317/api/health` を確認します。Serverが停止していればChrome Native Messaging経由で `com.deepreader.launcher` を起動し、既存のproduction Server controllerを使ってDeep Reader Serverをオンデマンド起動します。Server起動時にはランダムなlocal capability tokenを生成し、Native Messaging経由でExtensionへ渡します。`/api/health`以外のproduction APIはこのtokenを持つExtensionからのみ利用できます。
 
 ```text
 Deep Readerを使う
   → health check
   → 停止中ならNative Messaging Host起動
-  → Deep Reader Server起動
+  → Deep Reader Server起動 / 保護状態確認
+  → Native Hostからsession capabilityを取得
   → health確認
-  → 通常利用
+  → Bearer capability付きで通常利用
 ```
 
 Native HostはdaemonでもLogin Itemでもなく、Chromeから必要なときだけ起動される薄いlauncherです。Serverの手動操作は診断用途として引き続き利用できます。
@@ -174,7 +176,7 @@ npm run server:stop
 npm run server:restart
 ```
 
-`server:start` は `apps/server/data` を永続データ領域、`apps/server/drizzle` をmigrationとして自動設定し、ChatGPT.app同梱のCodex CLIも自動検出します。Serverは `http://127.0.0.1:4317/api` で待ち受け、ログは `.runtime/server.log` に保存されます。
+`server:start` は `apps/server/data` を永続データ領域、`apps/server/drizzle` をmigrationとして自動設定し、ChatGPT.app同梱のCodex CLIも自動検出します。Serverは `http://127.0.0.1:4317/api` で待ち受け、ログは `.runtime/server.log` に保存されます。production controllerはcapability tokenを `.runtime/capability-token` にowner-onlyで保持し、Extension側は `chrome.storage.session` にだけ保持します。
 
 ### 検証コマンド
 
@@ -198,3 +200,28 @@ DEEP_READER_E2E_HEADLESS=0 npm run e2e:extension:live
 ```
 
 Chrome Extension開発時は `npm run dev:chrome` でローカルServerとWXT dev serverを同時起動できます。ネイティブcontext menuそのもののクリックはOSのAccessibility/TCC境界があるため、自動Headless E2Eとは分離した最終ユーザースモーク対象です。
+
+
+## Security / Privacy / License
+
+- Security policy: [SECURITY.md](SECURITY.md)
+- Privacy policy: [PRIVACY.md](PRIVACY.md)
+- License: [Apache License 2.0](LICENSE)
+- Production dependency notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+
+第三者ライセンス一覧は `npm run licenses:generate` で現在のproduction dependency treeから再生成できます。
+
+### アイコン生成
+
+公開用アイコンの編集原本はリポジトリ直下の `Icon.png` です。Chrome用・GitHub Release用のPNGは手修正せず、次のコマンドで再生成します。
+
+```bash
+npm run icons:generate
+```
+
+生成先は次のとおりです。
+
+- Chrome Extension: `apps/chrome-extension/public/icons/icon-{16,32,48,128}.png`
+- Release / repository artwork: `assets/release/deep-reader-icon-{256,512,1024}.png`
+
+生成時に元画像の黒い外周マットを透明化し、各サイズへ高品質に縮小します。manifestの `icons` / `action.default_icon` はこの生成物を参照します。

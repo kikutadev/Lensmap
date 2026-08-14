@@ -2,7 +2,7 @@
 /* global console, fetch, setTimeout, clearTimeout, AbortController */
 import { Buffer } from "node:buffer";
 import { execFile } from "node:child_process";
-import { readSync } from "node:fs";
+import { existsSync, readFileSync, readSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -14,6 +14,7 @@ const projectRoot = process.env.DEEP_READER_PROJECT_ROOT
   ? resolve(process.env.DEEP_READER_PROJECT_ROOT)
   : resolve(scriptDir, "..");
 const controllerPath = resolve(projectRoot, "scripts/deep-reader-server.mjs");
+const capabilityTokenPath = resolve(projectRoot, ".runtime/capability-token");
 const host = process.env.DEEP_READER_HOST ?? "127.0.0.1";
 const port = Number.parseInt(process.env.DEEP_READER_PORT ?? "4317", 10);
 const healthUrl = `http://${host}:${port}/api/health`;
@@ -40,21 +41,43 @@ async function handleRequest(request) {
 
   const command = String(request.command);
   if (command === "ensure-server") {
-    if (await isServerHealthy()) {
-      return { ok: true, state: "already-running" };
+    const health = await getServerHealth();
+    const currentCapability = readCapabilityToken();
+
+    // Upgrade a legacy/unprotected process or recover when the capability file was lost.
+    if (health && (!health.capabilityRequired || !currentCapability)) {
+      await runServerController("restart");
+    } else if (!health) {
+      await runServerController("start");
     }
 
-    await startServer();
-    if (!(await isServerHealthy())) {
+    const securedHealth = await getServerHealth();
+    if (!securedHealth) {
       throw new Error("Deep Reader Server startup command completed, but health check still fails.");
     }
-    return { ok: true, state: "started" };
+    if (!securedHealth.capabilityRequired) {
+      throw new Error("Deep Reader Server is running without local capability protection.");
+    }
+
+    const capabilityToken = readCapabilityToken();
+    if (!capabilityToken) {
+      throw new Error("Deep Reader Server capability token is unavailable.");
+    }
+
+    return {
+      ok: true,
+      state: health?.capabilityRequired && currentCapability ? "already-running" : "started",
+      capabilityToken,
+    };
   }
 
   if (command === "status") {
+    const health = await getServerHealth();
     return {
       ok: true,
-      state: (await isServerHealthy()) ? "already-running" : "stopped",
+      state: health ? "already-running" : "stopped",
+      capabilityProtected: Boolean(health?.capabilityRequired),
+      capabilityAvailable: Boolean(readCapabilityToken()),
     };
   }
 
@@ -62,34 +85,43 @@ async function handleRequest(request) {
 }
 
 /** Reuse the production server controller so Native Messaging does not duplicate process-management logic. */
-async function startServer() {
+async function runServerController(command) {
   try {
-    await execFileAsync(process.execPath, [controllerPath, "start"], {
+    await execFileAsync(process.execPath, [controllerPath, command], {
       cwd: projectRoot,
       env: process.env,
       encoding: "utf8",
-      timeout: 15_000,
+      timeout: 20_000,
       maxBuffer: 1024 * 1024,
     });
   } catch (error) {
     const stderr = error && typeof error === "object" && "stderr" in error ? String(error.stderr ?? "").trim() : "";
     const stdout = error && typeof error === "object" && "stdout" in error ? String(error.stdout ?? "").trim() : "";
     const detail = stderr || stdout || (error instanceof Error ? error.message : String(error));
-    throw new Error(`Deep Reader Serverの起動に失敗しました: ${detail}`);
+    throw new Error(`Deep Reader Serverの${command}に失敗しました: ${detail}`);
   }
 }
 
-async function isServerHealthy() {
+async function getServerHealth() {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 1_500);
   try {
     const response = await fetch(healthUrl, { cache: "no-store", signal: controller.signal });
-    return response.ok;
+    if (!response.ok) return null;
+    const body = await response.json();
+    return body && typeof body === "object" ? body : null;
   } catch {
-    return false;
+    return null;
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+/** Read the capability from its owner-only runtime file without logging it. */
+function readCapabilityToken() {
+  if (!existsSync(capabilityTokenPath)) return null;
+  const token = readFileSync(capabilityTokenPath, "utf8").trim();
+  return token || null;
 }
 
 /** Read exactly one Chrome Native Messaging frame from stdin. */

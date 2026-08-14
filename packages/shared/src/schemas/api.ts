@@ -4,6 +4,7 @@ export const healthResponseSchema = z.object({
   status: z.literal("ok"),
   service: z.literal("deep-reader-server"),
   version: z.string(),
+  capabilityRequired: z.boolean().optional(),
 });
 
 export const codexModelSummarySchema = z.object({

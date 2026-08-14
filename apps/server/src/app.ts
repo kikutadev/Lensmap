@@ -21,6 +21,7 @@ import { chatRoutes } from "./routes/chat.js";
 import { documentRoutes } from "./routes/documents.js";
 import { insightRoutes } from "./routes/insights.js";
 import { sourceRoutes } from "./routes/sources.js";
+import { installLocalCapabilityAuth } from "./security/local-capability-auth.js";
 
 export interface BuildAppOptions {
   config?: AppConfig;
@@ -33,6 +34,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const config = options.config ?? loadConfig();
   const database = options.database ?? createDatabase(config);
   const app = Fastify({ logger: true });
+  installLocalCapabilityAuth(app, config.capabilityToken);
   const bookRepository = new BookRepository(database.db);
   const bookService = new BookService(bookRepository, config);
   const documentIndexService = new DocumentIndexService(
@@ -68,7 +70,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     origin: ["http://127.0.0.1:5173", "http://localhost:5173"],
     methods: ["GET", "HEAD", "POST", "PATCH", "OPTIONS"],
   });
-  await app.register(healthRoutes, { prefix: "/api" });
+  await app.register(healthRoutes, { prefix: "/api", capabilityRequired: Boolean(config.capabilityToken) });
   await app.register(codexRoutes, { prefix: "/api/codex", codex });
   await app.register(bookRoutes, { prefix: "/api/books", bookService });
   await app.register(documentRoutes, {

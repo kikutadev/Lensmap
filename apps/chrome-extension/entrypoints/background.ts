@@ -30,6 +30,7 @@ interface ActiveCapture {
 }
 
 const activeCaptures = new Map<number, ActiveCapture>();
+const navigationResetSuppressedUntil = new Map<number, number>();
 let contextMenuSetup: Promise<void> | null = null;
 
 export default defineBackground({
@@ -43,11 +44,11 @@ export default defineBackground({
     browser.runtime.onInstalled.addListener(() => { void scheduleContextMenuSetup(); });
     browser.tabs.onRemoved.addListener((tabId) => {
       abortCapture(tabId, "tab-closed");
+      navigationResetSuppressedUntil.delete(tabId);
       void removeTabState(tabId);
     });
     browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
-      if (!changeInfo.url) return;
-      void handleTabNavigation(tabId, changeInfo.url);
+      void handleTabUpdate(tabId, changeInfo);
     });
 
     browser.contextMenus.onClicked.addListener((info, tab) => {
@@ -290,9 +291,33 @@ async function materializeResolvedCandidate(
   return patchTabState(tabId, patch);
 }
 
-async function handleTabNavigation(tabId: number, nextUrl: string): Promise<void> {
+async function handleTabUpdate(
+  tabId: number,
+  changeInfo: { url?: string; status?: string },
+): Promise<void> {
   const state = await getTabState(tabId);
-  if (!shouldResetForNavigation(state, nextUrl)) return;
+  if (!state.pdfUrl) return;
+
+  if (changeInfo.url) {
+    if (!shouldResetForNavigation(state, changeInfo.url)) return;
+    abortCapture(tabId, "navigation");
+    await resetTabState(tabId);
+    return;
+  }
+
+  if (changeInfo.status !== "loading") return;
+  if ((navigationResetSuppressedUntil.get(tabId) ?? 0) > Date.now()) return;
+
+  // Without the broad `tabs` permission Chrome may hide the URL after activeTab is revoked.
+  // A hidden URL during navigation is sufficient reason to clear document-bound state.
+  let currentUrl: string | undefined;
+  try {
+    currentUrl = (await browser.tabs.get(tabId)).url;
+  } catch {
+    currentUrl = undefined;
+  }
+  if (currentUrl && !shouldResetForNavigation(state, currentUrl)) return;
+
   abortCapture(tabId, "navigation");
   await resetTabState(tabId);
 }
@@ -346,20 +371,31 @@ async function openCitation(tabId: number, page: number): Promise<void> {
   const url = new URL(state.pdfUrl);
   url.hash = `page=${Math.max(1, Math.floor(page))}`;
   const targetUrl = url.toString();
+  navigationResetSuppressedUntil.set(tabId, Date.now() + 5_000);
   await browser.tabs.update(tabId, { url: targetUrl, active: true });
-  await waitForTabUrl(tabId, targetUrl);
+  await waitForOwnCitationNavigation(tabId, targetUrl);
   // Chrome's built-in PDF viewer applies #page open parameters at document load, not a hash-only navigation.
+  // tabs.update/get/reload themselves do not require the broad `tabs` permission; activeTab covers URL visibility
+  // for the PDF tab while this user-initiated citation navigation is in progress.
   await browser.tabs.reload(tabId);
 }
 
-async function waitForTabUrl(tabId: number, targetUrl: string): Promise<void> {
+/** Wait until Chrome has committed our own same-document fragment before reloading the built-in PDF viewer. */
+async function waitForOwnCitationNavigation(tabId: number, targetUrl: string): Promise<void> {
   const deadline = Date.now() + 5_000;
+  let urlWasVisible = false;
   while (Date.now() < deadline) {
     const tab = await browser.tabs.get(tabId);
-    if (tab.url === targetUrl) return;
+    if (tab.url) {
+      urlWasVisible = true;
+      if (tab.url === targetUrl) return;
+    }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error(`PDFページURLへの遷移がタイムアウトしました: ${targetUrl}`);
+
+  // If Chrome redacted URL after the activeTab grant was revoked during navigation, the bounded wait above
+  // still gives the fragment navigation time to commit. A visible non-target URL is an actual failure.
+  if (urlWasVisible) throw new Error(`PDFページURLへの遷移がタイムアウトしました: ${targetUrl}`);
 }
 
 function sameSource(source: SourceAnchor, candidate: SelectionResolutionCandidate): boolean {

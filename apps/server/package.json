@@ -28,5 +28,6 @@
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.23.11",
     "vitest": "^3.2.7"
-  }
+  },
+  "license": "Apache-2.0"
 }

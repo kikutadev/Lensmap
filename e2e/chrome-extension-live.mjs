@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -16,6 +17,7 @@ const nodeBin = process.env.DEEP_READER_SERVER_NODE ?? process.execPath;
 const serverPort = 4417;
 const pdfPort = 9976;
 const serverBase = `http://127.0.0.1:${serverPort}/api`;
+const capabilityToken = randomBytes(32).toString("base64url");
 const pdfUrl = `http://127.0.0.1:${pdfPort}/book.pdf`;
 const duplicatePdfUrl = `http://127.0.0.1:${pdfPort}/duplicate.pdf`;
 const authenticatedLoginUrl = `http://127.0.0.1:${pdfPort}/auth/login`;
@@ -43,6 +45,7 @@ try {
       DEEP_READER_MIGRATIONS_DIR: migrationsDir,
       DEEP_READER_HOST: "127.0.0.1",
       DEEP_READER_PORT: String(serverPort),
+      DEEP_READER_CAPABILITY_TOKEN: capabilityToken,
       CODEX_BIN: process.env.CODEX_BIN ?? "/Applications/ChatGPT.app/Contents/Resources/codex",
     },
   }));
@@ -63,8 +66,9 @@ try {
   const worker = await workerTarget.worker();
   assert(worker, "Extension service worker was not created");
   const extensionId = new URL(workerTarget.url()).host;
-  await worker.evaluate(async (configuredServerBase) => {
+  await worker.evaluate(async ({ configuredServerBase, capabilityToken }) => {
     await chrome.storage.local.set({ deepReaderServerBase: configuredServerBase });
+    await chrome.storage.session.set({ deepReaderCapabilityToken: capabilityToken });
     let lastError = null;
     for (let attempt = 0; attempt < 50; attempt += 1) {
       try {
@@ -79,7 +83,7 @@ try {
       }
     }
     throw lastError ?? new Error("Context menus were not registered");
-  }, serverBase);
+  }, { configuredServerBase: serverBase, capabilityToken });
 
   const pdfPage = await browser.newPage();
   await pdfPage.goto(pdfUrl);
@@ -432,7 +436,9 @@ async function waitForHttp(url, timeoutMs) {
 }
 
 async function jsonFetch(url) {
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: { authorization: `Bearer ${capabilityToken}` },
+  });
   const text = await response.text();
   assert(response.ok, `${url}: ${response.status} ${text}`);
   return JSON.parse(text);

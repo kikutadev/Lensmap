@@ -15,6 +15,7 @@ const LEGACY_TAB_STATES_KEY = "deepReaderTabStates";
 const LEGACY_LAST_ASSISTANT_KEY = "lastAssistantByTab";
 const TAB_STATE_PREFIX = "deepReaderTabState:";
 const LAST_ASSISTANT_PREFIX = "deepReaderLastAssistant:";
+const CAPABILITY_TOKEN_KEY = "deepReaderCapabilityToken";
 
 function tabStateKey(tabId: number): string {
   return `${TAB_STATE_PREFIX}${tabId}`;
@@ -104,6 +105,23 @@ export async function getLastAssistant(tabId: number): Promise<ChatMessage | nul
 export async function clearLastAssistant(tabId: number): Promise<void> {
   await browser.storage.local.remove(lastAssistantKey(tabId));
   await removeLegacyMapEntry(LEGACY_LAST_ASSISTANT_KEY, tabId);
+}
+
+
+/** Keep the loopback capability in session-only extension storage so it is never persisted to disk by Deep Reader. */
+export async function getCapabilityToken(): Promise<string | null> {
+  const stored = await browser.storage.session.get(CAPABILITY_TOKEN_KEY) as Record<string, unknown>;
+  const token = stored[CAPABILITY_TOKEN_KEY];
+  return typeof token === "string" && token.length >= 32 ? token : null;
+}
+
+export async function setCapabilityToken(token: string): Promise<void> {
+  if (token.length < 32 || /\s/u.test(token)) throw new Error("Invalid Deep Reader capability token");
+  await browser.storage.session.set({ [CAPABILITY_TOKEN_KEY]: token });
+}
+
+export async function clearCapabilityToken(): Promise<void> {
+  await browser.storage.session.remove(CAPABILITY_TOKEN_KEY);
 }
 
 export async function getServerBase(): Promise<string> {

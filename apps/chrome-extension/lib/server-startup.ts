@@ -1,5 +1,5 @@
 import { browser } from "wxt/browser";
-import { getServerBase } from "./state";
+import { getCapabilityToken, getServerBase, setCapabilityToken } from "./state";
 
 const NATIVE_HOST_NAME = "com.deepreader.launcher";
 const HEALTH_CHECK_TIMEOUT_MS = 1_200;
@@ -9,17 +9,22 @@ const SERVER_START_POLL_MS = 150;
 interface NativeHostResponse {
   ok?: boolean;
   state?: "already-running" | "started";
+  capabilityToken?: string;
   message?: string;
 }
 
 let startPromise: Promise<void> | null = null;
 
-/** Ensure the local Deep Reader Server is available, starting it through Chrome Native Messaging only when needed. */
+/** Ensure both the local server and the session-only capability needed to access it are available. */
 export async function ensureDeepReaderServer(signal?: AbortSignal): Promise<void> {
-  if (await isDeepReaderServerHealthy(signal)) return;
+  const [healthy, capabilityToken] = await Promise.all([
+    isDeepReaderServerHealthy(signal),
+    getCapabilityToken(),
+  ]);
+  if (healthy && capabilityToken) return;
 
   if (!startPromise) {
-    startPromise = startServerViaNativeHost().finally(() => {
+    startPromise = synchronizeServerCapabilityViaNativeHost().finally(() => {
       startPromise = null;
     });
   }
@@ -27,7 +32,7 @@ export async function ensureDeepReaderServer(signal?: AbortSignal): Promise<void
   await waitWithAbort(startPromise, signal);
 }
 
-/** Perform a bounded health check without triggering any local process startup. */
+/** Perform a bounded public health check without triggering local process startup. */
 export async function isDeepReaderServerHealthy(signal?: AbortSignal): Promise<boolean> {
   const serverBase = await getServerBase();
   const controller = new AbortController();
@@ -53,8 +58,8 @@ export async function isDeepReaderServerHealthy(signal?: AbortSignal): Promise<b
   }
 }
 
-/** Ask Chrome to launch the registered Native Messaging host, then wait for the HTTP server to become healthy. */
-async function startServerViaNativeHost(): Promise<void> {
+/** Ask the trusted Native Messaging host for the current server capability, starting/upgrading the server if needed. */
+async function synchronizeServerCapabilityViaNativeHost(): Promise<void> {
   let response: NativeHostResponse;
   try {
     response = await browser.runtime.sendNativeMessage(NATIVE_HOST_NAME, {
@@ -69,6 +74,10 @@ async function startServerViaNativeHost(): Promise<void> {
   if (!response?.ok) {
     throw new Error(response?.message ?? "Deep Reader Serverの起動要求に失敗しました。");
   }
+  if (typeof response.capabilityToken !== "string" || response.capabilityToken.length < 32) {
+    throw new Error("Native HostからDeep Reader Serverの接続権限を取得できませんでした。");
+  }
+  await setCapabilityToken(response.capabilityToken);
 
   const deadline = Date.now() + SERVER_START_TIMEOUT_MS;
   while (Date.now() < deadline) {

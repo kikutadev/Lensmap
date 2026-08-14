@@ -13,7 +13,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run build:packages && npm run test --workspaces --if-present",
     "lint": "eslint .",
-    "check": "npm run typecheck && npm run test && npm run lint && npm run build",
+    "check": "npm run typecheck && npm run test && npm run lint && npm run build && npm run extension:permissions:check",
     "e2e": "playwright test",
     "e2e:live": "playwright test e2e/live-deep-reader.spec.ts",
     "e2e:reader": "playwright test e2e/reader-virtualization.spec.ts",
@@ -32,10 +32,14 @@
     "native-host:install": "npm run build:packages && npm run build -w @deep-reader/server && npm run build -w @deep-reader/chrome-extension && node scripts/native-host-manager.mjs install",
     "native-host:status": "node scripts/native-host-manager.mjs status",
     "native-host:uninstall": "node scripts/native-host-manager.mjs uninstall",
-    "test:native-host": "node scripts/test-native-host.mjs"
+    "test:native-host": "node scripts/test-native-host.mjs",
+    "licenses:generate": "node scripts/generate-third-party-notices.mjs",
+    "extension:permissions:check": "node scripts/check-extension-permissions.mjs",
+    "icons:generate": "node scripts/generate-icons.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@napi-rs/canvas": "^1.0.6",
     "@playwright/test": "^1.62.1",
     "@vitest/coverage-v8": "^3.2.7",
     "concurrently": "^10.0.4",
@@ -47,5 +51,6 @@
   },
   "engines": {
     "node": ">=22.13.0"
-  }
+  },
+  "license": "Apache-2.0"
 }

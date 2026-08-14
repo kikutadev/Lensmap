@@ -15,6 +15,7 @@ const manifestPath = resolve(
 );
 const controllerPath = resolve(root, "scripts/deep-reader-server.mjs");
 const healthUrl = "http://127.0.0.1:4317/api/health";
+const booksUrl = "http://127.0.0.1:4317/api/books";
 
 if (!existsSync(manifestPath)) {
   throw new Error(`Native Host manifest not installed: ${manifestPath}`);
@@ -31,7 +32,11 @@ try {
   const response = await sendNativeMessage(manifest.path, { command: "ensure-server" });
   assert.equal(response.ok, true, response.message ?? "Native Host returned failure");
   assert(["already-running", "started"].includes(response.state));
+  assert.equal(typeof response.capabilityToken, "string");
+  assert(response.capabilityToken.length >= 32);
   assert.equal(await waitForHealth(10_000), true, "Deep Reader Server did not become healthy");
+  assert.equal((await fetch(booksUrl)).status, 401, "Loopback API should reject requests without a capability");
+  assert.equal((await fetch(booksUrl, { headers: { authorization: `Bearer ${response.capabilityToken}` } })).status, 200);
   console.log(JSON.stringify({
     ok: true,
     state: response.state,
