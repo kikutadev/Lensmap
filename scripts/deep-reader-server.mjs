@@ -2,17 +2,17 @@
 import { chmodSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const runtimeDir = resolve(root, ".runtime");
+const runtimeDir = resolve(process.env.DEEP_READER_RUNTIME_DIR ?? resolve(root, ".runtime"));
 const pidFile = resolve(runtimeDir, "server.pid");
 const logFile = resolve(runtimeDir, "server.log");
 const capabilityTokenFile = resolve(runtimeDir, "capability-token");
 const serverEntry = resolve(root, "apps/server/dist/index.js");
-const dataDir = resolve(root, "apps/server/data");
+const dataDir = resolve(process.env.DEEP_READER_DATA_DIR ?? resolve(root, "apps/server/data"));
 const migrationsDir = resolve(root, "apps/server/drizzle");
 const host = process.env.DEEP_READER_HOST ?? "127.0.0.1";
 const port = Number.parseInt(process.env.DEEP_READER_PORT ?? "4317", 10);
@@ -145,10 +145,18 @@ function readCapabilityToken() {
 }
 
 function resolveCodexBin() {
-  if (process.env.CODEX_BIN && existsSync(process.env.CODEX_BIN)) return process.env.CODEX_BIN;
-  const chatGptCodex = "/Applications/ChatGPT.app/Contents/Resources/codex";
-  if (existsSync(chatGptCodex)) return chatGptCodex;
-  return undefined;
+  const pathCandidates = (process.env.PATH ?? "")
+    .split(delimiter)
+    .filter(Boolean)
+    .map((directory) => join(directory, "codex"));
+  const candidates = [
+    process.env.CODEX_BIN,
+    ...pathCandidates,
+    "/Applications/ChatGPT.app/Contents/Resources/codex",
+    "/opt/homebrew/bin/codex",
+    "/usr/local/bin/codex",
+  ].filter(Boolean);
+  return candidates.find((candidate) => existsSync(candidate));
 }
 
 function readPid() {

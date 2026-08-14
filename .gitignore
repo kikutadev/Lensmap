@@ -30,3 +30,5 @@ apps/server/drizzle/meta/_journal.json.tmp
 *.pfx
 .envrc
 .direnv/
+release-dist/
+.release-cache/

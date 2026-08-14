@@ -14,7 +14,8 @@ const projectRoot = process.env.DEEP_READER_PROJECT_ROOT
   ? resolve(process.env.DEEP_READER_PROJECT_ROOT)
   : resolve(scriptDir, "..");
 const controllerPath = resolve(projectRoot, "scripts/deep-reader-server.mjs");
-const capabilityTokenPath = resolve(projectRoot, ".runtime/capability-token");
+const runtimeDir = resolve(process.env.DEEP_READER_RUNTIME_DIR ?? resolve(projectRoot, ".runtime"));
+const capabilityTokenPath = resolve(runtimeDir, "capability-token");
 const host = process.env.DEEP_READER_HOST ?? "127.0.0.1";
 const port = Number.parseInt(process.env.DEEP_READER_PORT ?? "4317", 10);
 const healthUrl = `http://${host}:${port}/api/health`;

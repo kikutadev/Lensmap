@@ -46,15 +46,85 @@ Server 起動ごとにランダムな local capability token を生成し、`/ap
 
 ## 必要環境
 
-- macOS
+GitHub Releases の配布版は現在 **macOS Apple Silicon (arm64)** を対象にしています。
+
+- macOS (Apple Silicon)
 - Google Chrome 141 以上
-- Node.js 22.13.0 以上
-- 検証基準: Node.js 22.23.2 (`.node-version`)
-- ChatGPT/Codex に認証済みのローカル環境
+- ChatGPT Mac app または Codex CLI で ChatGPT/Codex に認証済みであること
+
+配布ZIPには検証済みの Node.js 22.23.2 runtime を同梱するため、利用者が Node.js / npm / Git をインストールする必要はありません。
 
 `codex app-server` の生 protocol を Browser へ公開せず、Local Server が狭いアプリ API と read-only book tools に変換します。
 
+## GitHub Releases からインストール
+
+Release assets から次の2ファイルを取得します。
+
+```text
+DeepReader-<version>-macos-arm64.zip
+DeepReader-<version>-macos-arm64.zip.sha256
+```
+
+必要であれば、展開前にchecksumを確認できます。
+
+```bash
+shasum -a 256 -c DeepReader-<version>-macos-arm64.zip.sha256
+```
+
+ZIPを展開し、`install.command` を実行します。これは初回インストールとアップデートの両方に使えます。
+
+```bash
+./install.command
+```
+
+macOSがダウンロードしたスクリプトの起動を確認する場合は、内容とReleaseのchecksumを確認したうえでFinderからControl-click →「開く」を使用してください。インストーラは管理者権限を要求せず、ユーザー領域だけを変更します。
+
+インストール先は固定です。
+
+```text
+~/Library/Application Support/DeepReader/app       実行ファイル（更新時に置換）
+~/Library/Application Support/DeepReader/data      PDF索引・DB等（更新時も保持）
+~/Library/Application Support/DeepReader/runtime   PID・ログ・capability
+```
+
+初回のみChromeで `chrome://extensions` を開き、次の操作を行います。
+
+1. Developer mode を有効化
+2. `Load unpacked` / 「パッケージ化されていない拡張機能を読み込む」
+3. `~/Library/Application Support/DeepReader/app/apps/chrome-extension/.output/chrome-mv3` を選択
+4. ローカルPDFを読む場合はDeep Readerの詳細画面で **Allow access to file URLs** を有効化
+
+Extension IDはmanifestの公開鍵で固定しているため、Release更新でもNative Messagingの許可originは変わりません。
+
+### アップデート
+
+新しいRelease ZIPを展開し、同じ `install.command` を実行します。`data` は置換されません。完了後、`chrome://extensions` でDeep Readerの **Reload** をクリックしてください。Extensionの参照パス自体は変わりません。
+
+### 診断
+
+インストール済みの状態は次で確認できます。
+
+```bash
+~/Library/Application\ Support/DeepReader/app/status.command
+```
+
+### アンインストール
+
+```bash
+~/Library/Application\ Support/DeepReader/app/uninstall.command
+```
+
+既定では読書データを `~/Library/Application Support/DeepReader/data` に残します。データも削除する場合だけ次を使用します。
+
+```bash
+DEEP_READER_PURGE_DATA=1 ~/Library/Application\ Support/DeepReader/app/uninstall.command
+```
+
+最後に `chrome://extensions` からDeep Readerを削除してください。
+
 ## 開発セットアップ
+
+開発者は Node.js 22.13.0 以上が必要です。このリポジトリの検証基準は Node.js 22.23.2 (`.node-version`) です。
 
 ```bash
 npm install
@@ -110,6 +180,38 @@ npm run e2e:extension:real -- /path/to/book.pdf
 ```
 
 `e2e:extension:live` は実 Codex App Server を利用して、PDF import/index、selection 再同定、AI 追加参照、citation navigation、Insight、複数 thread、複数 tab、Cookie 認証 PDF、`file://` PDF、Server 障害表示まで Headless Chrome で検証します。
+
+
+## GitHub Release成果物の作成
+
+Release buildは **macOS arm64 + Node.js 22.23.2** で実行します。production build・テスト・権限検査の後、Serverが必要とするproduction dependency closureだけを抽出し、公式Node runtimeをSHA-256検証して同梱します。
+
+```bash
+npm ci
+npm run release:build
+```
+
+生成物:
+
+```text
+release-dist/DeepReader-<version>-macos-arm64.zip
+release-dist/DeepReader-<version>-macos-arm64.zip.sha256
+```
+
+Release builderは生成されたbundleを同梱Nodeで実際にServer起動→health確認→停止するself-testまで実行します。`release-dist/` とNode runtime cacheはGit管理対象外です。
+
+GitHub Releaseには上記ZIPとchecksumを添付すればよく、Chrome Web Storeへの登録は不要です。GitHub CLIを利用する場合は、release build後に次のように公開できます。
+
+```bash
+VERSION=$(node -p "require('./package.json').version")
+gh release create "v${VERSION}" \
+  "release-dist/DeepReader-${VERSION}-macos-arm64.zip" \
+  "release-dist/DeepReader-${VERSION}-macos-arm64.zip.sha256" \
+  --title "Deep Reader v${VERSION}" \
+  --generate-notes
+```
+
+タグとReleaseを作成する外部書き込みなので、これは公開するタイミングで明示的に実行します。
 
 ## リポジトリ構成
 

@@ -30,7 +30,8 @@
     "test:native-host": "node scripts/test-native-host.mjs",
     "licenses:generate": "node scripts/generate-third-party-notices.mjs",
     "extension:permissions:check": "node scripts/check-extension-permissions.mjs",
-    "icons:generate": "node scripts/generate-icons.mjs"
+    "icons:generate": "node scripts/generate-icons.mjs",
+    "release:build": "node scripts/build-release.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

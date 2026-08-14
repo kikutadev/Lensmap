@@ -20,6 +20,9 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
 const extensionManifestPath = resolve(projectRoot, "apps/chrome-extension/.output/chrome-mv3/manifest.json");
 const hostScriptPath = resolve(projectRoot, "scripts/deep-reader-native-host.mjs");
+const configuredDataDir = process.env.DEEP_READER_DATA_DIR ? resolve(process.env.DEEP_READER_DATA_DIR) : null;
+const configuredRuntimeDir = process.env.DEEP_READER_RUNTIME_DIR ? resolve(process.env.DEEP_READER_RUNTIME_DIR) : null;
+const configuredCodexBin = process.env.CODEX_BIN ? resolve(process.env.CODEX_BIN) : null;
 const runtimeDir = resolve(homedir(), "Library/Application Support/DeepReader/native-host");
 const wrapperPath = resolve(runtimeDir, "deep-reader-native-host");
 const nativeManifestTargets = [
@@ -66,6 +69,9 @@ function install() {
   const wrapper = [
     "#!/bin/sh",
     `export DEEP_READER_PROJECT_ROOT=${shellQuote(projectRoot)}`,
+    ...(configuredDataDir ? [`export DEEP_READER_DATA_DIR=${shellQuote(configuredDataDir)}`] : []),
+    ...(configuredRuntimeDir ? [`export DEEP_READER_RUNTIME_DIR=${shellQuote(configuredRuntimeDir)}`] : []),
+    ...(configuredCodexBin ? [`export CODEX_BIN=${shellQuote(configuredCodexBin)}`] : []),
     `exec ${shellQuote(process.execPath)} ${shellQuote(hostScriptPath)}`,
     "",
   ].join("\n");
@@ -92,6 +98,9 @@ function install() {
     manifestTargets: nativeManifestTargets.map(({ browser, manifestPath }) => ({ browser, manifestPath })),
     wrapperPath,
     projectRoot,
+    dataDir: configuredDataDir,
+    runtimeDir: configuredRuntimeDir,
+    codexBin: configuredCodexBin,
     daemonInstalled: false,
     loginItemInstalled: false,
   }, null, 2));
@@ -138,6 +147,9 @@ function status() {
     targets,
     wrapperPath,
     projectRoot,
+    dataDir: configuredDataDir,
+    runtimeDir: configuredRuntimeDir,
+    codexBin: configuredCodexBin,
     daemonInstalled: false,
     loginItemInstalled: false,
   }, null, 2));
