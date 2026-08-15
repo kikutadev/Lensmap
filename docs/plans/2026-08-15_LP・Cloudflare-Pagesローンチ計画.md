@@ -88,7 +88,7 @@ apps/
 /Users/kiku28/pj/apps/Lensmap
 ```
 
-GitHub は `kikutadev/Lensmap` を正規 repository とし、公開前 secret / local-data / history scan を通過した場合は Public repository とする。
+GitHub は `kikutadev/Lensmap` を正規 repository とする。2026-08-16 に secret / local-data / history scan を通過し、Public repository として作成・`main` push 済み。
 
 Public 化前の必須条件:
 
@@ -689,7 +689,7 @@ Git push は production deploy を自動発火させない。
 
 ### P4 — Publish
 
-- [ ] GitHub remote / repository を確定・push
+- [x] GitHub `kikutadev/Lensmap` Public repository を作成し、`origin` / `main` をpush
 - [ ] Cloudflare Pages Direct Upload project / CLI deploy scripts
 - [ ] `*.pages.dev` preview / production acceptance
 - [ ] `lensmap.kikuta.dev` custom domain
