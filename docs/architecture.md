@@ -4,6 +4,8 @@
 
 Lensmap の公開版は Chrome Extension + Local Server の1経路とする。
 
+Map構造化とCodex Skill / Dynamic Toolの設計判断は [`ADR-001: Structured Map Composition`](adr/ADR-001_structured-map-composition.md) を正とする。
+
 ```text
 Chrome built-in PDF Viewer
         │ selection/context menu
@@ -57,6 +59,8 @@ active tab の変更で Workspace / Thread / draft / streaming state を自動�
 apps/
   chrome-extension/
   server/
+    skills/
+      lensmap-map-composer/
 packages/
   shared/
   visualization/
@@ -67,7 +71,7 @@ assets/
 ```
 
 - `apps/chrome-extension`: WXT / React / Side Panel / background worker
-- `apps/server`: Fastify / SQLite / Reader Workspace / PDF index / Codex adapter
+- `apps/server`: Fastify / SQLite / Reader Workspace / PDF index / Codex adapter / built-in Codex Skills
 - `packages/shared`: API・domain schema
 - `packages/visualization`: allow-list Visualization DSL
 
@@ -155,15 +159,19 @@ Turn単位で次を記録する。
 
 Adapter はアプリが利用する狭い protocol 面だけを Zod で runtime validation する。巨大な自動生成 protocol bindings は通常buildへ含めない。
 
+LensmapはApp ServerのSkill discoveryへbuilt-in Skill rootを登録し、`lensmap-map-composer` をReader threadから利用可能にする。起動時に `skills/extraRoots/set` でrootを登録し、`skills/list` でdiscoveryをhealth checkする。Map構造化のdecision tableやexamplesはbase promptへ重複せずSkillをSSOTとする。
+
 Explore thread は次の防御を持つ。
 
 - approval policy: `never`
 - sandbox: read-only
 - Lensmap専用base instructions
 - configured MCP / Apps / Web searchをreader用途から分離
-- Lensmap workspace toolsだけを model-visible にする
+- Lensmap workspace retrieval toolsと、非永続の `lensmap_compose_map` Map Draft提出toolだけを model-visible にする
 
 Codex modelはThread defaultとして保存する。model変更はThreadを作り直さず、次Turnから適用する。Visual Sourceを含むTurnでは`model/list`のinput modalityを確認し、`image`非対応modelへOCR-onlyで黙って送信しない。画像対応modelではCodex App Serverの`localImage`入力を利用する。
+
+`lensmap_compose_map` はDB writeを行わず、per-turn memoryへZod検証済みMap Draftを提出するだけとする。Turn完了後にMapServiceがDraftをMapArtifactへmaterializeし、Draftがない場合だけMarkdown parserへfallbackする。これによりMap自動保存・冪等性を維持したまま、主要経路をMarkdown再解釈から分離する。
 
 利用状況は以下のCodex App Serverデータを使う。
 

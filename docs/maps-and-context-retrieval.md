@@ -18,6 +18,8 @@ Lensmapでは、Exploreの会話ログそのものを最終成果物としない
 
 上位原則は [`concept.md`](concept.md) を正とする。
 
+関連する設計判断: [`ADR-001: Structured Map Composition`](adr/ADR-001_structured-map-composition.md)
+
 ---
 
 ## 2. 主要ドメイン
@@ -135,9 +137,25 @@ Explore Turn
 6. **Reusable** — Explore Threadを開かなくてもMap単体で意味が分かる。
 7. **Versioned** — 編集しても由来と変更履歴を失わない。
 
-### 4.2 MapArtifactはkindで分類しない
+### 4.2 Mapの意味分類と表示形式を分離する
 
-旧来の `note / report / table / diagram / chart` をMapArtifact自体の種類にはしない。
+旧来の `note / report / table / diagram / chart` をMapArtifact自体の種類にはしない。これらは表示形式である。
+
+一方、Mapが「何を理解した成果物か」は意味分類として保持する。初期の `MapSemanticKind` は次とする。
+
+```ts
+type MapSemanticKind =
+  | "definition"
+  | "comparison"
+  | "causal"
+  | "process"
+  | "hierarchy"
+  | "timeline"
+  | "quantitative"
+  | "synthesis";
+```
+
+例えば `definition` Mapは文章中心のdefinition cardでもよく、`comparison` Mapは単純なtableだけでもよい。Mapの意味とReactでの表現を同一視しない。
 
 1つのMapは複数の表現を組み合わせる。
 
@@ -155,6 +173,8 @@ interface MapArtifact {
 interface MapVersion {
   id: string;
   mapId: string;
+  semanticKind: MapSemanticKind;
+  primaryBlockId: string | null;
   conciseExplanation: string;
   blocks: MapBlock[];
   provenance: MapProvenance;
@@ -167,6 +187,7 @@ interface MapVersion {
 ```ts
 type MapBlock =
   | NarrativeBlock
+  | DefinitionBlock
   | CalloutBlock
   | TableBlock
   | DiagramBlock
@@ -176,20 +197,24 @@ type MapBlock =
 
 通常文章は一続きのDocumentとして表示し、内部的なMarkdown chunkをそのままカード列にしない。
 
-### 4.3 Visual form
+### 4.3 Structured form / Visual form
 
-質問内容に応じて回答生成時から適切な表現を選ぶ。
+構造化できる理解は回答生成時点で構造化する。表示が文章中心でも、内部まで非構造化テキストに戻さない。
 
 ```text
-概念関係        → relationship / hierarchy
-処理の流れ      → flow
-複数案の違い    → comparison / matrix
-変遷            → timeline
-定量比較        → chart
-図解の意味が薄い → concise narrative + callout/table
+definition      → definition structure → definition card / concise text
+comparison      → comparison structure → table / comparison
+causal          → relation structure   → flow
+process         → ordered relation     → flow / ordered steps
+hierarchy       → parent-child         → hierarchy / outline
+timeline        → temporal items       → timeline
+quantitative    → numeric structure    → table / chart
+synthesis       → mixed blocks         → structured narrative +必要なblock
 ```
 
-ユーザーへMermaidや内部Visualization DSLを選ばせない。
+`@lensmap/visualization` のallow-list JSONをReact-renderable structured blockとして利用し、`definition` と `table` も第一級schemaへ追加する。Mermaidは、structured JSONで自然に表せない図のescape hatchとして残す。
+
+ユーザーへMermaidや内部JSON DSLを選ばせない。
 
 ### 4.4 Provenance
 
@@ -219,7 +244,7 @@ MapVersion全体とMapBlock単位の両方でSourceAnchorを追跡できるよ�
 正常に完了したAssistant responseは、ユーザー操作なしでMapArtifactとして保存する。
 
 ```text
-Explore response completes
+Explore response / Map Draft completes
         ↓
 MapVersion materialization
         ↓
@@ -237,7 +262,7 @@ Maps library cache refresh
 - 通常フローに手動保存・手動昇格ボタンを置かない。
 - 完了後は静かに `Mapに保存済み` と表示し、必要なら `Mapsで開く` を出す。
 
-Mapは回答文字列の単純コピーではない。回答生成時からMap-readyな構造を持ち、その構造を保存する。
+Mapは回答文字列の単純コピーではない。CodexはLensmap専用Map Composition Skillを利用し、成功Turnでは可能な限りstructured Map Draftを生成する。Local Serverはclient-provided `lensmap_compose_map` dynamic toolでDraftをZod検証し、Turn完了時にMapArtifactへmaterializeする。Draftが得られない場合だけ既存Markdown解析をfallbackとして使う。Map自動保存方針は変えない。
 
 ---
 
@@ -511,7 +536,8 @@ MapArtifact * <-> * Turn (origin/provenance)
 MapArtifact / Explore responseは次のrendererを利用できる。
 
 - Markdown / narrative
-- Mermaid
+- definition
+- table
 - comparison
 - flow
 - hierarchy
@@ -519,6 +545,7 @@ MapArtifact / Explore responseは次のrendererを利用できる。
 - matrix
 - callout
 - chart (`bar` / `line` / `scatter`)
+- Mermaid（structured JSONで自然に表現できない場合のescape hatch）
 
 任意JSX / JavaScript / HTMLは実行しない。Visualization JSONはZod allow-list schemaで検証する。
 

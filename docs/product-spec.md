@@ -8,6 +8,8 @@ Lensmap は、Chrome で技術書 PDF を読みながら、**気になった一�
 
 上位原則は [`concept.md`](concept.md) を正とする。
 
+関連する設計判断: [`ADR-001: Structured Map Composition`](adr/ADR-001_structured-map-composition.md)
+
 UI・visual designは [`design-system.md`](design-system.md) と [`ui-and-visualization.md`](ui-and-visualization.md) を規範仕様とする。Apple Human Interface Guidelinesを第一参照とし、Chrome Side Panelの制約へ翻訳して適用する。
 
 ```text
@@ -197,7 +199,7 @@ MapArtifactは回答ログのコピーではなく、**理解の構造が見え�
 - Reusable
 - Versioned
 
-MapArtifact自体を`note / report / table / diagram / chart`のkindで分類しない。1つのMapはNarrative / Table / Diagram / Chart等のMapBlockを組み合わせる。
+MapArtifact自体を`note / report / table / diagram / chart`のkindで分類しない。これらは表示形式である。一方、Mapが何を理解した成果物かは `definition / comparison / causal / process / hierarchy / timeline / quantitative / synthesis` の意味分類として保持する。1つのMapはNarrative / Definition / Table / Diagram / Chart等のMapBlockを組み合わせる。
 
 ```ts
 interface MapArtifact {
@@ -209,7 +211,17 @@ interface MapArtifact {
   createdAt: string;
   updatedAt: string;
 }
+
+interface MapVersion {
+  id: string;
+  mapId: string;
+  semanticKind: "definition" | "comparison" | "causal" | "process" | "hierarchy" | "timeline" | "quantitative" | "synthesis";
+  primaryBlockId: string | null;
+  // concise explanation / blocks / provenance ...
+}
 ```
+
+通常APIのMap detail / summaryにはlatest versionの `semanticKind` / `primaryBlockId` を投影してよい。
 
 - `originTurnId`で冪等化する
 - Map保存失敗は正常なExplore回答を失敗扱いにしない
@@ -222,22 +234,25 @@ interface MapArtifact {
 
 ## 9. Map Presentation / Visualization
 
-Explore回答とMapは、内容に応じて次を組み合わせる。
+Explore回答とMapは、内容に応じて次を組み合わせる。構造化できる理解は生成時点で構造化し、表示が文章中心でも内部まで非構造化テキストに戻さない。
 
 - concise narrative
-- Mermaid
+- definition
+- table
 - comparison
 - flow
 - hierarchy
 - timeline
 - matrix
 - callout
-- table
 - chart (`bar` / `line` / `scatter`)
+- Mermaid（structured JSONで自然に表現できない場合のescape hatch）
 
-図解に意味がある場合は回答生成時からvisual structureを積極的に含める。ただしdiagramを強制しない。
+`definition` Mapが文章中心、`comparison` Mapが単純tableだけでも正式なMapとして成立する。図解に意味がある場合だけvisual structureを利用し、diagramを強制しない。
 
-任意JSX / JavaScript / HTMLは実行しない。Visualization JSONはZod allow-list schemaで検証する。
+CodexにはLensmap専用Map Composition Skillを渡し、意味分類・最小表現・Source対応・JSON DSLの使い分けをSkill側で規定する。成功Turnではclient-provided `lensmap_compose_map` dynamic toolへstructured Map Draftを提出し、Local ServerがZod検証して自動保存する。Draftがない場合のみMarkdown parsingへfallbackする。
+
+任意JSX / JavaScript / HTMLは実行しない。Structured Map JSONはZod allow-list schemaで検証する。
 
 Chartは`dataNature = source | derived | illustrative`を必須とし、説明用仮想値を実測値のように表示しない。
 
