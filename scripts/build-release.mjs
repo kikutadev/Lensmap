@@ -31,6 +31,8 @@ const cacheDir = resolve(root, ".release-cache");
 const bundleDir = resolve(outputDir, bundleName);
 const archivePath = resolve(outputDir, `${bundleName}.zip`);
 const checksumPath = `${archivePath}.sha256`;
+const extensionArchivePath = resolve(outputDir, `Lensmap-Extension-${releaseVersion}-chrome.zip`);
+const extensionChecksumPath = `${extensionArchivePath}.sha256`;
 const skipCheck = process.argv.includes("--skip-check");
 
 main().catch((error) => {
@@ -58,7 +60,9 @@ async function main() {
   makeCommandsExecutable();
   selfTestBundle();
   createZip();
-  writeChecksum();
+  createExtensionZip();
+  writeChecksum(archivePath, checksumPath);
+  writeChecksum(extensionArchivePath, extensionChecksumPath);
 
   console.log(JSON.stringify({
     version: releaseVersion,
@@ -66,6 +70,8 @@ async function main() {
     bundleDir,
     archivePath,
     checksumPath,
+    extensionArchivePath,
+    extensionChecksumPath,
     extensionPath: resolve(bundleDir, "apps/chrome-extension/.output/chrome-mv3"),
   }, null, 2));
 }
@@ -231,9 +237,18 @@ function createZip() {
   run("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", bundleDir, archivePath], { timeout: 120_000 });
 }
 
-function writeChecksum() {
-  const digest = sha256File(archivePath);
-  writeFileSync(checksumPath, `${digest}  ${basename(archivePath)}\n`, "utf8");
+function createExtensionZip() {
+  const extensionRoot = resolve(root, "apps/chrome-extension/.output/chrome-mv3");
+  if (!existsSync(resolve(extensionRoot, "manifest.json"))) {
+    throw new Error("Chrome extension production output is missing manifest.json");
+  }
+  rmSync(extensionArchivePath, { force: true });
+  run("/usr/bin/zip", ["-qr", extensionArchivePath, "."], { cwd: extensionRoot, timeout: 120_000 });
+}
+
+function writeChecksum(filePath, destination) {
+  const digest = sha256File(filePath);
+  writeFileSync(destination, `${digest}  ${basename(filePath)}\n`, "utf8");
 }
 
 function runNpm(args, options = {}) {

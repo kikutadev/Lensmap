@@ -212,17 +212,21 @@ npm run release:build
 ```text
 release-dist/Lensmap-<version>-macos-arm64.zip
 release-dist/Lensmap-<version>-macos-arm64.zip.sha256
+release-dist/Lensmap-Extension-<version>-chrome.zip
+release-dist/Lensmap-Extension-<version>-chrome.zip.sha256
 ```
 
 Release builderは生成されたbundleを同梱Nodeで実際にServer起動→health確認→停止するself-testまで実行します。`release-dist/` とNode runtime cacheはGit管理対象外です。
 
-GitHub Releaseには上記ZIPとchecksumを添付すればよく、Chrome Web Storeへの登録は不要です。GitHub CLIを利用する場合は、release build後に次のように公開できます。
+GitHub Releaseには上記ZIPとchecksumを添付すればよく、Chrome Web Storeへの登録は不要です。`Lensmap-Extension-<version>-chrome.zip` は `manifest.json` がZIP直下にあるChrome拡張単体のproduction packageで、`.output/chrome-mv3/` はローカルで「パッケージ化されていない拡張機能」として読み込む場合に利用します。GitHub CLIを利用する場合は、release build後に次のように公開できます。
 
 ```bash
 VERSION=$(node -p "require('./package.json').version")
 gh release create "v${VERSION}" \
   "release-dist/Lensmap-${VERSION}-macos-arm64.zip" \
   "release-dist/Lensmap-${VERSION}-macos-arm64.zip.sha256" \
+  "release-dist/Lensmap-Extension-${VERSION}-chrome.zip" \
+  "release-dist/Lensmap-Extension-${VERSION}-chrome.zip.sha256" \
   --title "Lensmap v${VERSION}" \
   --generate-notes
 ```
