@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { createServer } from "node:net";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -16,8 +17,8 @@ const migrationsDir = resolve(root, "apps/server/drizzle");
 const localPdfPath = resolve(root, ".extension-e2e-local.pdf");
 const visualAcceptanceDir = resolve(root, ".e2e-artifacts/lensmap-sidepanel");
 const nodeBin = process.env.LENSMAP_SERVER_NODE ?? process.execPath;
-const serverPort = 4417;
-const pdfPort = 9976;
+const serverPort = await findFreeLoopbackPort();
+const pdfPort = await findFreeLoopbackPort();
 const serverBase = `http://127.0.0.1:${serverPort}/api`;
 const capabilityToken = randomBytes(32).toString("base64url");
 const pdfUrl = `http://127.0.0.1:${pdfPort}/book.pdf`;
@@ -478,6 +479,23 @@ async function readTabState(worker, tabId) {
     const stored = await chrome.storage.local.get(key);
     return stored[key] ?? null;
   }, tabId);
+}
+
+async function findFreeLoopbackPort() {
+  return new Promise((resolvePort, reject) => {
+    const server = createServer();
+    server.unref();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close(() => reject(new Error("Could not allocate a loopback E2E port")));
+        return;
+      }
+      const port = address.port;
+      server.close((error) => error ? reject(error) : resolvePort(port));
+    });
+  });
 }
 
 async function waitForHttp(url, timeoutMs) {

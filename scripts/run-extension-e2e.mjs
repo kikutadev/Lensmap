@@ -12,6 +12,7 @@ if (!script) {
 
 const serverNode = process.execPath;
 let browserNode = process.execPath;
+let chromeBin = process.env.LENSMAP_CHROME_BIN ?? null;
 const hostArch = platform() === "darwin"
   ? (spawnSync("/usr/sbin/sysctl", ["-n", "hw.optional.arm64"], { encoding: "utf8" }).stdout.trim() === "1" ? "arm64" : process.arch)
   : process.arch;
@@ -21,6 +22,16 @@ if (platform() === "darwin" && hostArch === "arm64" && process.arch !== "arm64")
   if (nativeNode) browserNode = nativeNode;
 }
 
+if (!chromeBin) {
+  try {
+    const puppeteer = (await import("puppeteer")).default;
+    const pinnedChrome = await puppeteer.executablePath();
+    if (pinnedChrome && existsSync(pinnedChrome)) chromeBin = pinnedChrome;
+  } catch {
+    // Fall back to chrome-launch.mjs resolving an installed system browser.
+  }
+}
+
 const result = spawnSync(browserNode, [script, ...args], {
   cwd: process.cwd(),
   stdio: "inherit",
@@ -28,6 +39,7 @@ const result = spawnSync(browserNode, [script, ...args], {
     ...process.env,
     LENSMAP_E2E_HEADLESS: process.env.LENSMAP_E2E_HEADLESS ?? "1",
     LENSMAP_SERVER_NODE: process.env.LENSMAP_SERVER_NODE ?? serverNode,
+    ...(chromeBin ? { LENSMAP_CHROME_BIN: chromeBin } : {}),
   },
 });
 if (result.error) throw result.error;

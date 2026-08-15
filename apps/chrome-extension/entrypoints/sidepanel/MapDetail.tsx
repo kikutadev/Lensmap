@@ -96,6 +96,7 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
   if (latest.isLoading) return <LoaderBlock label="Mapを読み込み中…" />;
   if (!detail) return <div className="capture-status error">Mapを読み込めませんでした。</div>;
   const isLatest = detail.artifact.version === latest.data?.artifact.version;
+  const hasPrimaryVisual = detail.artifact.blocks.some((block) => ["table", "diagram", "chart", "visual-reference"].includes(block.kind));
 
   return (
     <div className="map-detail">
@@ -123,7 +124,7 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
         <>
           <h1>{detail.artifact.title}</h1>
           <div className="map-meta">v{detail.artifact.version} · {detail.artifact.sourceAnchorIds.length} refs</div>
-          {detail.artifact.conciseExplanation ? <p className="map-concise-explanation">{detail.artifact.conciseExplanation}</p> : null}
+          {detail.artifact.conciseExplanation && hasPrimaryVisual ? <p className="map-concise-explanation">{detail.artifact.conciseExplanation}</p> : null}
           {detail.artifact.tags.length ? <div className="tag-row">{detail.artifact.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
 
           <div className="version-row" aria-label="Map versions">
