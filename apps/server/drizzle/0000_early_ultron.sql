@@ -86,7 +86,7 @@ CREATE TABLE `explore_threads` (
 	`codex_thread_id` text,
 	`model` text NOT NULL,
 	`context_tools_version` integer DEFAULT 0 NOT NULL,
-	`title` text DEFAULT 'Deep Dive' NOT NULL,
+	`title` text DEFAULT '新しいExplore' NOT NULL,
 	`conversation_summary` text DEFAULT '' NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,

@@ -108,7 +108,7 @@ export const exploreThreads = sqliteTable("explore_threads", {
   codexThreadId: text("codex_thread_id"),
   model: text("model").notNull(),
   contextToolsVersion: integer("context_tools_version").notNull().default(0),
-  title: text("title").notNull().default("Deep Dive"),
+  title: text("title").notNull().default("新しいExplore"),
   conversationSummary: text("conversation_summary").notNull().default(""),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),

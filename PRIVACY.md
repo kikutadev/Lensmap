@@ -19,13 +19,13 @@ Lensmap may process and store the following on the user's machine:
 - extracted/indexed PDF text and document structure;
 - selected quotations, cropped visual regions, OCR text, and source anchors;
 - locally retrieved surrounding passages or search results;
-- Deep Dive questions and AI responses;
+- Explore questions and AI responses;
 - conversation summaries and source/citation provenance;
 - saved Map artifacts, versions, tags, and related metadata;
 - local application logs used for diagnosis;
 - limited Chrome extension state such as the active Reader Workspace, current document metadata, selected sources, and recent assistant state.
 
-The server stores its persistent application data in the configured Lensmap data directory. The Chrome extension uses `chrome.storage.local` for ordinary extension state. Lensmap does not use `chrome.storage.sync` for book or chat data.
+The server stores its persistent application data in the configured Lensmap data directory. The Chrome extension uses `chrome.storage.local` for ordinary extension state. Lensmap does not use `chrome.storage.sync` for book or Explore data.
 
 ## Data sent for AI processing
 

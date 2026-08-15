@@ -264,7 +264,7 @@ Chrome Tab は次のための Surface に留める。
 
 複数 PDF を比較して得た理解も 1 つの Map にできる。Map は primary document に固定せず、複数 document の provenance を持てることを前提とする。
 
-詳細は `reader-workspace-multi-pdf-ux-redesign.md` を参照する。
+詳細な挙動は `product-spec.md`、`architecture.md`、`ui-and-visualization.md`、`maps-and-context-retrieval.md` を正とする。
 
 ---
 

@@ -109,7 +109,7 @@ export class ExploreService {
       codexThreadId: null,
       model,
       contextToolsVersion: this.workspaceToolsEnabled ? WORKSPACE_CONTEXT_TOOLS_VERSION : 0,
-      title: input.title?.trim() || "新しい会話",
+      title: input.title?.trim() || "新しいExplore",
       conversationSummary: "",
       createdAt: now,
       updatedAt: now,
@@ -271,7 +271,7 @@ export class ExploreService {
       const now = new Date().toISOString();
       const created = this.repository.createThread({
         id: randomUUID(), workspaceId, originBookId, codexThreadId: codexThread.thread.id, model: codexThread.model,
-        contextToolsVersion, title: "新しい会話", conversationSummary: "", createdAt: now, updatedAt: now,
+        contextToolsVersion, title: "新しいExplore", conversationSummary: "", createdAt: now, updatedAt: now,
       });
       return { ...created, codexThreadId: codexThread.thread.id };
     }
@@ -374,7 +374,7 @@ function deriveExpansionCharacterBudget(contextWindowTokens: number | null | und
   return Math.min(72_000, Math.max(24_000, Math.floor(contextWindowTokens * 0.08 * 4)));
 }
 
-function isPlaceholderThreadTitle(title: string): boolean { return title === "Deep Dive" || title === "新しいDeep Dive" || title === "新しい会話"; }
+function isPlaceholderThreadTitle(title: string): boolean { return title === "新しいExplore"; }
 function deriveThreadTitle(question: string): string {
   const compact = question.replace(/\s+/gu, " ").trim();
   const firstSentence = compact.split(/[。.!?]/u)[0]?.trim() || compact;

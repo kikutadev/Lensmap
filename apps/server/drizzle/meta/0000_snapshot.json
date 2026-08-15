@@ -598,7 +598,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'Deep Dive'"
+          "default": "'新しいExplore'"
         },
         "conversation_summary": {
           "name": "conversation_summary",
