@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en" data-i18n-document-title="help.pageTitle">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,57 +10,72 @@
     <main class="help-shell">
       <header class="hero">
         <div class="eyebrow">Lensmap</div>
-        <h1>気になった箇所から、理解の地図をつくる。</h1>
-        <p>Chrome標準PDFビューアをそのまま使い、テキストや図表をReader Workspaceへ集めてExploreします。必要な文脈はWorkspace内の複数PDFから追加探索できます。</p>
+        <h1 data-i18n="help.heroTitle">Turn what catches your attention into a map of understanding.</h1>
+        <p data-i18n="help.heroBody">Keep using Chrome’s built-in PDF Viewer, collect passages and visuals into a Reader Workspace, and Explore them.</p>
       </header>
 
+      <section class="language-card" aria-labelledby="language-title">
+        <div>
+          <h2 id="language-title" data-i18n="help.languageTitle">Language</h2>
+          <p data-i18n="help.languageDescription">Choose the language used by Lensmap. System follows your browser language.</p>
+        </div>
+        <label>
+          <span data-i18n="help.languageLabel">Display language</span>
+          <select id="language-preference">
+            <option value="system">System</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+          </select>
+        </label>
+      </section>
+
       <section>
-        <h2>はじめ方</h2>
+        <h2 data-i18n="help.gettingStarted">Getting started</h2>
         <ol class="steps">
-          <li><strong>PDFをChromeで開く</strong><span>Web上のPDF、またはファイルURLへのアクセスを許可したローカルPDFを開きます。</span></li>
-          <li><strong>本文を選択して右クリック</strong><span>「LensmapでExplore」は参照を追加して質問欄へ進み、「Lensmapの参照に追加」は現在のWorkspaceへ根拠だけを追加します。</span></li>
-          <li><strong>図・表は「範囲を選択」</strong><span>Side Panelまたは右クリックから、現在見えているPDF画面を固定したCapture Surfaceを開きます。ドラッグしたcrop画像そのものがVisual Sourceとして保存されます。</span></li>
-          <li><strong>質問する</strong><span>同じWorkspaceにある複数PDFのText / Visual Sourceをまとめて質問できます。回答に必要ならWorkspace内検索や節・前後文脈を追加参照します。</span></li>
+          <li><strong data-i18n="help.step1Title">Open a PDF in Chrome</strong><span data-i18n="help.step1Body">Open a PDF on the web, or a local PDF after allowing Lensmap to access file URLs.</span></li>
+          <li><strong data-i18n="help.step2Title">Select text and right-click</strong><span data-i18n="help.step2Body">Use the Lensmap context menu to add a reference or start Explore.</span></li>
+          <li><strong data-i18n="help.step3Title">Use “Select region” for figures and tables</strong><span data-i18n="help.step3Body">Open a Capture Surface and keep the image crop itself as Visual Source evidence.</span></li>
+          <li><strong data-i18n="help.step4Title">Ask a question</strong><span data-i18n="help.step4Body">Ask across Text and Visual Sources collected in the same Workspace.</span></li>
         </ol>
       </section>
 
       <section class="grid">
         <article>
-          <h2>Reader Workspace</h2>
-          <p>WorkspaceがExplore、参照、Mapsの所有単位です。Chromeタブを切り替えても会話や下書きは消えません。PDF AとPDF Bの参照を同じWorkspaceへ集めて比較できます。</p>
+          <h2 data-i18n="help.workspaceTitle">Reader Workspace</h2>
+          <p data-i18n="help.workspaceBody">A Workspace owns Explore threads, references, and Maps.</p>
         </article>
         <article>
-          <h2>引用の読み方</h2>
-          <p><strong>S1 / S2…</strong> は回答で実際に使ったEvidenceです。Text Sourceは原文、Visual Sourceは保存cropのthumbnailを確認できます。ページが再同定済みならクリックで該当PDFページへ戻れます。</p>
-          <p class="note">Chrome標準PDFビューアのprivate APIには依存しないため、恒久的な矩形overlayは保証しません。</p>
+          <h2 data-i18n="help.citationsTitle">Reading citations</h2>
+          <p data-i18n="help.citationsBody">S1 / S2… are the Evidence actually used in the answer.</p>
+          <p class="note" data-i18n="help.citationsNote">Lensmap does not depend on Chrome’s private PDF Viewer API.</p>
         </article>
         <article>
-          <h2>Visual Source</h2>
-          <p>画像cropが一次情報です。Apple Vision OCRとPDF索引によるページ再同定は検索・preview用の派生情報であり、失敗しても画像Sourceは保持されます。Visual Sourceを質問に使うと、crop画像が画像入力対応Codex modelへ送られます。</p>
+          <h2 data-i18n="help.visualSourceTitle">Visual Source</h2>
+          <p data-i18n="help.visualSourceBody">The image crop is the primary information.</p>
         </article>
         <article>
-          <h2>AI追加参照</h2>
-          <p>検索hitは候補にすぎません。Codexが実際に本文を読んだ時点でのみS#へ昇格し、追加参照履歴も人間向けの要約として残ります。複数PDFを横断した場合もBook名を保持します。</p>
+          <h2 data-i18n="help.aiReferenceTitle">AI-added references</h2>
+          <p data-i18n="help.aiReferenceBody">A search hit becomes Evidence only after Codex actually reads it.</p>
         </article>
         <article>
-          <h2>Maps</h2>
-          <p>完了したExplore回答は自動で1つのMapとして保存されます。同じTurnを再処理しても重複保存しません。Visual Sourceを含むMapは画像を優先して表示し、説明、Evidence、version historyを後から確認できます。</p>
+          <h2 data-i18n="help.mapsTitle">Maps</h2>
+          <p data-i18n="help.mapsBody">Each completed Explore answer is automatically saved as one Map.</p>
         </article>
         <article>
-          <h2>Codex表示</h2>
-          <p>右上では使用model、直近TurnのContext利用状況、Codexの利用枠を確認できます。Visual Sourceを使う場合はimage input対応modelが必要で、非対応modelへOCR-onlyで黙って劣化しません。</p>
+          <h2 data-i18n="help.codexTitle">Codex App Server</h2>
+          <p data-i18n="help.codexBody">Lensmap uses Codex App Server as its AI runtime.</p>
         </article>
       </section>
 
       <section>
-        <h2>表示される利用率</h2>
+        <h2 data-i18n="help.usageTitle">Usage indicators</h2>
         <dl>
-          <div><dt>丸いContextゲージ</dt><dd>直近Turnのtoken usageを、そのTurnで報告されたmodel context windowに対する割合として表示します。</dd></div>
-          <div><dt>利用枠 / 長期利用枠</dt><dd>Codex App Serverが返すrolling rate limitの使用率です。利用枠が複数ある場合はそれぞれ表示します。</dd></div>
+          <div><dt data-i18n="help.contextGaugeTerm">Circular Context gauge</dt><dd data-i18n="help.contextGaugeDefinition">Shows the latest turn’s token usage as a percentage of its context window.</dd></div>
+          <div><dt data-i18n="help.usageWindowTerm">Usage window / Long-term window</dt><dd data-i18n="help.usageWindowDefinition">Rolling rate-limit usage returned by Codex App Server.</dd></div>
         </dl>
       </section>
 
-      <footer>LensmapはPDF本文とVisual Sourceをローカルに保持し、Codexには現在のReader Workspaceに必要なEvidenceと限定されたworkspace_* retrievalだけを渡します。</footer>
+      <footer data-i18n="help.footer">Lensmap keeps PDF content and Visual Sources locally.</footer>
     </main>
     <script type="module" src="./main.ts"></script>
   </body>

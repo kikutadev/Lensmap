@@ -1,10 +1,11 @@
 import { defineConfig } from "wxt";
 
 export default defineConfig({
-  modules: ["@wxt-dev/module-react"],
+  modules: ["@wxt-dev/module-react", "@wxt-dev/i18n/module"],
   manifest: {
-    name: "Lensmap",
-    description: "Chrome標準PDFビューアの横で、気になった一節や図表から文脈を掘り、根拠付きの理解をMapとして残すローカル読書ツール。",
+    name: "__MSG_manifest_name__",
+    description: "__MSG_manifest_description__",
+    default_locale: "en",
     minimum_chrome_version: "141",
     key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlwlZP1XZgNb6c8eCe0IK+5wVmBE8ifL1a6/B8sG8cXDHyYJRGnL8iO+PLGIkYYhN0GKbuU8c4BL7PKZRdFZpRbE65pJYZOdO8iCPNLZzAv6ev/3n6Oh3P2/z5DbxMLgNWdmZl99+x6bRxvQQ9hjmjji3eCjjsqRQ80PYK3UtwWDXIKk3AyT1cvG0B+sRfVgvZMQRHJ5hzhDhn7E/qVZkFramNG3NDYS9BRV6ICebGJ/wnLAPWz/Ln3/pZ1nRg1tq0SxqEbuIA7MND9IAOP+kR2XnHs5QK9hbxxtHLZQBRDQP+NLkFXTo6Uj7IhPpXQ5OUpKjbjqRdK+088rfmA2lLwIDAQAB",
     permissions: ["contextMenus", "storage", "activeTab", "nativeMessaging"],

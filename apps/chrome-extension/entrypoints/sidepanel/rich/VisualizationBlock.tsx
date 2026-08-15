@@ -3,6 +3,7 @@ import { visualizationSchema, type ChartVisualization, type Visualization } from
 import { ReactFlow, type Edge, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { SourceReference } from "./SourceReference";
+import { t } from "../../../lib/i18n/runtime";
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer,
   Scatter, ScatterChart, Tooltip, XAxis, YAxis,
@@ -31,7 +32,7 @@ export function VisualizationBlock({ json, sources, onOpenSource }: Props) {
         {parsed.data.type === "chart" ? <DataNatureBadge nature={parsed.data.dataNature} /> : null}
       </div>
       <VisualizationBody visualization={parsed.data} />
-      {invalidRefs.length ? <div className="rich-warning">未知の参照ID: {invalidRefs.join(", ")}</div> : null}
+      {invalidRefs.length ? <div className="rich-warning">{t("visualization.unknownReferenceIds", { ids: invalidRefs.join(", ") })}</div> : null}
       {parsed.data.sourceRefs.length ? (
         <div className="citation-row">
           {parsed.data.sourceRefs.flatMap((label) => {
@@ -121,13 +122,13 @@ function Matrix({ visualization }: { visualization: Extract<Visualization, { typ
 }
 
 function Chart({ visualization }: { visualization: ChartVisualization }) {
-  if (!visualization.data.length) return <div className="rich-loading">表示するデータがありません。</div>;
+  if (!visualization.data.length) return <div className="rich-loading">{t("visualization.noData")}</div>;
   if (visualization.chartType === "bar") return <div className="viz-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={visualization.data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey={visualization.xKey} tick={{ fontSize: 9 }} /><YAxis tick={{ fontSize: 9 }} /><Tooltip /><Legend />{visualization.series.map((series) => <Bar key={series.dataKey} dataKey={series.dataKey} name={series.label} />)}</BarChart></ResponsiveContainer></div>;
   if (visualization.chartType === "line") return <div className="viz-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={visualization.data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey={visualization.xKey} tick={{ fontSize: 9 }} /><YAxis tick={{ fontSize: 9 }} /><Tooltip /><Legend />{visualization.series.map((series) => <Line key={series.dataKey} dataKey={series.dataKey} name={series.label} dot={false} />)}</LineChart></ResponsiveContainer></div>;
   const numericX = visualization.data.every((row) => typeof row[visualization.xKey] === "number");
   return <div className="viz-chart"><ResponsiveContainer width="100%" height="100%"><ScatterChart><CartesianGrid strokeDasharray="3 3" /><XAxis type={numericX ? "number" : "category"} dataKey="x" tick={{ fontSize: 9 }} /><YAxis dataKey="y" tick={{ fontSize: 9 }} /><Tooltip /><Legend />{visualization.series.map((series) => <Scatter key={series.dataKey} name={series.label} data={visualization.data.flatMap((row) => { const x = row[visualization.xKey]; const y = row[series.dataKey]; return (typeof x === "number" || typeof x === "string") && typeof y === "number" ? [{ x, y }] : []; })} />)}</ScatterChart></ResponsiveContainer></div>;
 }
 
-function InvalidVisualization({ json }: { json: string }) { return <div className="rich-error"><strong>図表データを安全に解釈できませんでした</strong><pre>{json}</pre></div>; }
-function DataNatureBadge({ nature }: { nature: "source" | "derived" | "illustrative" }) { return <span className={`data-nature ${nature}`}>{nature === "source" ? "書籍の数値" : nature === "derived" ? "根拠から算出" : "説明用の例示"}</span>; }
+function InvalidVisualization({ json }: { json: string }) { return <div className="rich-error"><strong>{t("errors.visualizationInvalid")}</strong><pre>{json}</pre></div>; }
+function DataNatureBadge({ nature }: { nature: "source" | "derived" | "illustrative" }) { return <span className={`data-nature ${nature}`}>{nature === "source" ? t("visualization.sourceData") : nature === "derived" ? t("visualization.derivedData") : t("visualization.illustrativeData")}</span>; }
 function hierarchyDepth(id: string, nodes: Extract<Visualization, { type: "hierarchy" }>["nodes"]): number { const byId = new Map(nodes.map((node) => [node.id, node])); let depth = 0; let current = byId.get(id); const seen = new Set<string>(); while (current?.parentId && depth < 8 && !seen.has(current.id)) { seen.add(current.id); const parent = byId.get(current.parentId); if (!parent) break; current = parent; depth += 1; } return depth; }

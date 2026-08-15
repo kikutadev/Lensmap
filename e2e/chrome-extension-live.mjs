@@ -82,7 +82,7 @@ try {
   const extensionId = new URL(workerTarget.url()).host;
 
   await worker.evaluate(async ({ configuredServerBase, token }) => {
-    await chrome.storage.local.set({ "lensmap.serverBase": configuredServerBase });
+    await chrome.storage.local.set({ "lensmap.serverBase": configuredServerBase, "lensmap.localePreference": "ja" });
     await chrome.storage.session.set({ "lensmap.capabilityToken": token });
     let lastError = null;
     for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -236,7 +236,18 @@ try {
   await capturePage.mouse.up();
   await capturePage.waitForFunction(() => !document.querySelector("#save")?.hasAttribute("disabled"));
   await capturePage.click("#save");
-  await waitForTargetGone(browser, captureTarget, 20_000);
+  try {
+    await waitForTargetGone(browser, captureTarget, 35_000);
+  } catch (error) {
+    const captureDiagnostics = await capturePage.evaluate(() => ({
+      status: document.querySelector("#status")?.textContent ?? "",
+      statusClass: document.querySelector("#status")?.className ?? "",
+      saveDisabled: document.querySelector("#save")?.hasAttribute("disabled") ?? null,
+      body: document.body.textContent ?? "",
+    })).catch(() => null);
+    const workspaceDiagnostics = await apiJson(`/workspaces/${workspaceId}`).catch((reason) => ({ error: String(reason) }));
+    throw new Error(`Extension Capture Surface did not close: ${JSON.stringify({ captureDiagnostics, workspaceDiagnostics })}`, { cause: error });
+  }
 
   await waitFor(async () => {
     const workspace = await apiJson(`/workspaces/${workspaceId}`);
@@ -380,6 +391,16 @@ try {
   assert(helpText.includes("Reader Workspace"));
   assert(helpText.includes("Visual Source"));
   assert(helpText.includes("Maps"));
+  assert(helpText.includes("はじめ方"), "Help did not honor the forced Japanese locale");
+  assert(helpText.includes("Codex App Server"), "Help does not document Codex App Server");
+
+  // Runtime override must update already-open React and static extension pages without a rebuild.
+  await worker.evaluate(async () => chrome.storage.local.set({ "lensmap.localePreference": "en" }));
+  await sidePanel.waitForFunction(() => document.querySelector('button[aria-label="New Explore"]'), { timeout: 10_000 });
+  await helpPage.waitForFunction(() => document.body.textContent?.includes("Getting started"), { timeout: 10_000 });
+  assert.equal(await helpPage.$eval("#language-preference", (element) => element.value), "en");
+  assert.equal(await helpPage.$eval("html", (element) => element.lang), "en");
+  assert((await sidePanel.$eval("body", (element) => element.textContent ?? "")).includes("References"), "Side Panel did not switch to English");
 
   console.log(JSON.stringify({
     extensionId,
@@ -400,6 +421,7 @@ try {
     localFilePdfResolved: true,
     authenticatedPdfResolved: true,
     helpVerified: true,
+    runtimeLocaleSwitch: true,
     onboardingDismissalPersistent: true,
     visualAcceptanceDir,
   }, null, 2));

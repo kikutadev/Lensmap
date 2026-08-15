@@ -35,3 +35,9 @@ footer { margin-top: 42px; padding-top: 18px; border-top: 1px solid #e2e8f0; col
   .grid { grid-template-columns: 1fr; }
   dl div { grid-template-columns: 1fr; gap: 4px; }
 }
+.language-card { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 18px; border: 1px solid #e2e8f0; border-radius: 14px; background: white; }
+.language-card > div { max-width: 620px; }
+.language-card h2 { margin-bottom: 6px; }
+.language-card label { display: grid; gap: 6px; min-width: 180px; color: #475569; font-size: 12px; font-weight: 700; }
+.language-card select { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 9px; background: white; color: #0f172a; font: inherit; }
+@media (max-width: 680px) { .language-card { align-items: stretch; flex-direction: column; } .language-card label { min-width: 0; } }

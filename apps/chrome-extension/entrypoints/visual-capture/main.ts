@@ -1,6 +1,8 @@
 import type { NormalizedRect } from "@lensmap/shared";
 import { browser } from "wxt/browser";
 import { addWorkspaceSource, createVisualSource } from "../../lib/api";
+import { installPageLocalization } from "../../lib/i18n/page";
+import { t } from "../../lib/i18n/runtime";
 import { dragToNormalizedRect, normalizedRectToPixelCrop, type Point } from "../../lib/visual-capture";
 
 interface CapturePayload {
@@ -24,19 +26,22 @@ let payload: CapturePayload | null = null;
 let dragStart: Point | null = null;
 let normalizedRect: NormalizedRect | null = null;
 let saving = false;
+let statusKey: "drag" | "small" | "ready" | "saving" | null = null;
 
 void initialize();
 
 async function initialize(): Promise<void> {
-  if (!captureId) return fail("Capture IDがありません");
+  await installPageLocalization(document, { onLocaleChanged: renderLocalizedStatus });
+  if (!captureId) return fail(t("errors.captureIdMissing"));
   try {
     const response = await browser.runtime.sendMessage({ type: "get-visual-capture", captureId }) as { ok?: boolean; capture?: CapturePayload; error?: string };
-    if (!response?.ok || !response.capture) throw new Error(response?.error ?? "キャプチャ画像を取得できませんでした");
+    if (!response?.ok || !response.capture) throw new Error(response?.error ?? t("errors.captureImageUnavailable"));
     payload = response.capture;
     image.addEventListener("load", () => {
       loading.hidden = true;
       image.hidden = false;
-      status.textContent = "画像上をドラッグして範囲を指定してください。";
+      statusKey = "drag";
+      renderLocalizedStatus();
     }, { once: true });
     image.src = payload.dataUrl;
   } catch (error: unknown) {
@@ -69,12 +74,14 @@ surface.addEventListener("pointerup", (event) => {
   if (!normalizedRect) {
     selection.hidden = true;
     saveButton.disabled = true;
-    status.textContent = "もう少し大きい範囲を選択してください。";
+    statusKey = "small";
+    renderLocalizedStatus();
     return;
   }
   renderNormalizedSelection(normalizedRect, bounds);
   saveButton.disabled = false;
-  status.textContent = "この範囲をVisual Sourceとして参照に追加できます。";
+  statusKey = "ready";
+  renderLocalizedStatus();
 });
 
 saveButton.addEventListener("click", () => { void saveSelection(); });
@@ -90,7 +97,8 @@ async function saveSelection(): Promise<void> {
   saveButton.disabled = true;
   cancelButton.disabled = true;
   status.classList.remove("error");
-  status.textContent = "Visual Sourceを保存しています…";
+  statusKey = "saving";
+  renderLocalizedStatus();
   try {
     const png = await cropPng(image, normalizedRect);
     const source = await createVisualSource(payload.bookId, {
@@ -117,10 +125,10 @@ async function cropPng(sourceImage: HTMLImageElement, rect: NormalizedRect): Pro
   canvas.width = crop.width;
   canvas.height = crop.height;
   const context = canvas.getContext("2d", { alpha: true });
-  if (!context) throw new Error("画像の切り出しを開始できませんでした");
+  if (!context) throw new Error(t("errors.cropUnavailable"));
   context.drawImage(sourceImage, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-  if (!blob) throw new Error("PNGの生成に失敗しました");
+  if (!blob) throw new Error(t("errors.pngGenerationFailed"));
   return blob;
 }
 
@@ -156,11 +164,22 @@ function renderNormalizedSelection(rect: NormalizedRect, bounds: DOMRect): void 
   selection.hidden = false;
 }
 
+function renderLocalizedStatus(): void {
+  if (status.classList.contains("error")) return;
+  const key = statusKey === "drag" ? "capture.dragPrompt"
+    : statusKey === "small" ? "capture.selectionTooSmall"
+      : statusKey === "ready" ? "capture.selectionReady"
+        : statusKey === "saving" ? "capture.saving"
+          : null;
+  if (key) status.textContent = t(key);
+}
+
 function isInside(x: number, y: number, bounds: DOMRect): boolean {
   return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
 }
 
 function fail(message: string): void {
+  statusKey = null;
   status.textContent = message;
   status.classList.add("error");
   loading.hidden = true;

@@ -305,6 +305,25 @@ Help / onboardingはCore Loop順に説明する。
 - local PDF権限
 - 現状の制約
 
+### 11.1 表示言語
+
+Chrome Extension本体は初回リリースから日本語 / 英語を正式対応する。翻訳SSOTはWXT i18n catalogとし、Side PanelだけでなくManifest、context menu、Help、Visual Capture、aria/title、Lensmap所有のエラー文言まで同じcatalogから解決する。
+
+表示言語は次の3状態を持つ。
+
+```text
+System   Chrome / browser UI languageへ追従
+English  英語へ明示固定
+日本語   日本語へ明示固定
+```
+
+- default localeはEnglishとする
+- `System`では`browser.i18n` / WXT i18nのlocale resolutionを正とする
+- 明示overrideは`chrome.storage.local`へ保存し、Extensionの再buildなしで既存画面へ反映する
+- locale変更でReader Workspace、Explore、Map、Capture等の製品状態をresetしない
+- AI生成本文の言語はUI localeとは別概念とし、UI翻訳で生成済み回答そのものを書き換えない
+- 日本語LPには日本語Extension実画面、英語LPには英語Extension実画面を使用する
+
 ## 12. ローカル保存と外部送信
 
 ローカル保存:

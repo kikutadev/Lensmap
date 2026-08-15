@@ -42,6 +42,7 @@ import {
 } from "@lensmap/shared";
 import { clearCapabilityToken, getBookUrlCache, getCapabilityToken, getServerBase, setBookUrlCache } from "./state";
 import { requestServerStartup } from "./request-server-startup";
+import { t } from "./i18n/runtime";
 
 const MAX_PDF_BYTES = 512 * 1024 * 1024;
 const PDF_MAGIC = "%PDF-";
@@ -99,19 +100,19 @@ export async function ensureBook(pdfUrl: string, signal?: AbortSignal): Promise<
     credentials: "include",
     ...(signal ? { signal } : {}),
   });
-  if (!response.ok) throw new Error(`PDF取得に失敗しました: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(t("errors.pdfFetchFailed", { status: response.status }));
 
   const declaredLength = Number.parseInt(response.headers.get("content-length") ?? "", 10);
   if (Number.isFinite(declaredLength) && declaredLength > MAX_PDF_BYTES) {
-    throw new Error("PDFが512MBを超えているため取り込めません");
+    throw new Error(t("errors.pdfTooLarge"));
   }
 
   const blob = await response.blob();
-  if (blob.size > MAX_PDF_BYTES) throw new Error("PDFが512MBを超えているため取り込めません");
+  if (blob.size > MAX_PDF_BYTES) throw new Error(t("errors.pdfTooLarge"));
   const magic = await blob.slice(0, PDF_MAGIC.length).text();
   if (magic !== PDF_MAGIC) {
-    const contentType = response.headers.get("content-type") ?? "不明";
-    throw new Error(`選択中のページをPDFとして取得できませんでした（Content-Type: ${contentType}）`);
+    const contentType = response.headers.get("content-type") ?? t("errors.unknownContentType");
+    throw new Error(t("errors.notPdf", { contentType }));
   }
 
   const form = new FormData();
@@ -309,7 +310,7 @@ async function serverFetch(path: string, init: RequestInit | undefined): Promise
     await requestServerStartup(signal);
     capabilityToken = await getCapabilityToken();
   }
-  if (!capabilityToken) throw new Error("Lensmap Serverの接続権限を取得できませんでした");
+  if (!capabilityToken) throw new Error(t("errors.capabilityUnavailable"));
 
   let response = await fetch(`${serverBase}${path}`, withCapability(init, capabilityToken));
   if (response.status !== 401) return response;

@@ -2,6 +2,7 @@ import type { MapBlock, ExploreMessageSource, MapArtifactDetail } from "@lensmap
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, GitCompareArrows, History, LoaderCircle, Pencil, Save, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { t } from "../../lib/i18n/runtime";
 import {
   fetchMapDetail,
   fetchMapDiff,
@@ -61,7 +62,7 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!latest.data) throw new Error("Mapを読み込めませんでした");
+      if (!latest.data) throw new Error(t("errors.mapLoadFailed"));
       const editableBlocks = latest.data.artifact.blocks.flatMap((block) => {
         const draft = blockDrafts[block.id];
         if (draft === undefined) return [];
@@ -101,8 +102,8 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
     setSelectedVersion(latest.data.artifact.version);
   };
 
-  if (latest.isLoading) return <LoaderBlock label="Mapを読み込み中…" />;
-  if (!detail) return <div className="capture-status error">Mapを読み込めませんでした。</div>;
+  if (latest.isLoading) return <LoaderBlock label={t("map.loading")} />;
+  if (!detail) return <div className="capture-status error">{t("errors.mapLoadFailed")}</div>;
   const isLatest = detail.artifact.version === latest.data?.artifact.version;
   const primary = detail.artifact.blocks.find((block) => block.id === detail.artifact.primaryBlockId) ?? detail.artifact.blocks[0] ?? null;
   const supporting = detail.artifact.blocks.filter((block) => block.id !== primary?.id);
@@ -110,23 +111,23 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
   return (
     <div className="map-detail">
       <div className="map-toolbar">
-        <button className="back-button" onClick={onBack}><ArrowLeft size={14} />一覧へ</button>
-        {isLatest && !editing ? <button className="secondary-button" onClick={startEdit}><Pencil size={13} />編集</button> : null}
+        <button className="back-button" onClick={onBack}><ArrowLeft size={14} />{t("map.backToList")}</button>
+        {isLatest && !editing ? <button className="secondary-button" onClick={startEdit}><Pencil size={13} />{t("common.edit")}</button> : null}
       </div>
 
       {editing ? (
         <section className="map-editor">
-          <label>タイトル<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-          <label>要点<textarea value={conciseExplanation} onChange={(event) => setConciseExplanation(event.target.value)} /></label>
+          <label>{t("map.title")}<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label>{t("map.summary")}<textarea value={conciseExplanation} onChange={(event) => setConciseExplanation(event.target.value)} /></label>
           {latest.data!.artifact.blocks.flatMap((block) => {
             if (!(block.id in blockDrafts)) return [];
             return [<label key={block.id}>{editableBlockLabel(block)}<textarea value={blockDrafts[block.id] ?? ""} onChange={(event) => setBlockDrafts((current) => ({ ...current, [block.id]: event.target.value }))} /></label>];
           })}
-          <label>Tags<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="architecture, cache" /></label>
+          <label>{t("map.tags")}<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="architecture, cache" /></label>
           {editError ? <div className="capture-status error">{editError}</div> : null}
           <div className="editor-actions">
-            <button className="secondary-button" onClick={() => setEditing(false)}><X size={13} />キャンセル</button>
-            <button className="primary-button" disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? <LoaderCircle className="spin" size={13} /> : <Save size={13} />}新しいversionとして保存</button>
+            <button className="secondary-button" onClick={() => setEditing(false)}><X size={13} />{t("common.cancel")}</button>
+            <button className="primary-button" disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? <LoaderCircle className="spin" size={13} /> : <Save size={13} />}{t("map.saveNewVersion")}</button>
           </div>
         </section>
       ) : (
@@ -150,7 +151,7 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
             </div>
             {diff.data ? (
               <details className="diff-panel">
-                <summary><GitCompareArrows size={13} />v{diff.data.fromVersion} → v{diff.data.toVersion} の変更</summary>
+                <summary><GitCompareArrows size={13} />{t("map.versionChanges", { from: diff.data.fromVersion, to: diff.data.toVersion })}</summary>
                 {diff.data.changes.filter((change) => change.change !== "unchanged").map((change) => <div key={`${change.order}-${change.kind}`}><strong>{change.kind} · {change.change}</strong><pre>{change.afterContent === undefined ? "(removed)" : serializeContent(change.afterContent)}</pre></div>)}
               </details>
             ) : null}
@@ -187,8 +188,8 @@ function MapBlockView({ block, detail, onOpenSource, primary = false }: { block:
   const contentOwnsCitations = blockUsesVisualizationRenderer(block);
   return (
     <article className={`map-block ${block.kind}${primary ? " primary" : ""}`}>
-      {block.groundingKind === "ai-explanation" ? <div className="map-provenance-note">書籍本文の直接引用を伴わないAI補足</div> : null}
-      {block.groundingStatus === "modified" ? <div className="map-provenance-note modified">編集済み · 引用は元回答時点の根拠です</div> : null}
+      {block.groundingKind === "ai-explanation" ? <div className="map-provenance-note">{t("map.aiSupplement")}</div> : null}
+      {block.groundingStatus === "modified" ? <div className="map-provenance-note modified">{t("map.modifiedEvidence")}</div> : null}
       <MapBlockContent block={block} sources={exploreSources} onOpenSource={open} />
       {exploreSources.length > 0 && !contentOwnsCitations ? <div className="citation-row map-citations">{exploreSources.map((source) => <SourceReference key={`${block.id}-${source.label}`} source={source} onOpen={open} variant="chip" />)}</div> : null}
     </article>
@@ -249,7 +250,7 @@ function applySemanticEdit(block: MapBlock, draft: string): unknown {
 function editableBlockLabel(block: MapBlock): string {
   const content = asRecord(block.content);
   const visualization = content?.format === "visualization" ? asRecord(content.visualization) : null;
-  return visualization?.type === "definition" ? "定義" : "本文";
+  return visualization?.type === "definition" ? t("map.definition") : t("map.body");
 }
 
 function blockUsesVisualizationRenderer(block: MapBlock): boolean {
@@ -258,7 +259,16 @@ function blockUsesVisualizationRenderer(block: MapBlock): boolean {
 }
 
 function semanticKindLabel(kind: MapArtifactDetail["artifact"]["semanticKind"]): string {
-  const labels = { definition: "定義", comparison: "比較", causal: "因果", process: "処理", hierarchy: "階層", timeline: "時系列", quantitative: "定量", synthesis: "統合" } as const;
+  const labels = {
+    definition: t("map.semanticDefinition"),
+    comparison: t("map.semanticComparison"),
+    causal: t("map.semanticCausal"),
+    process: t("map.semanticProcess"),
+    hierarchy: t("map.semanticHierarchy"),
+    timeline: t("map.semanticTimeline"),
+    quantitative: t("map.semanticQuantitative"),
+    synthesis: t("map.semanticSynthesis"),
+  } as const;
   return labels[kind];
 }
 

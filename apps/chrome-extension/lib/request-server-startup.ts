@@ -1,4 +1,5 @@
 import { browser } from "wxt/browser";
+import { t } from "./i18n/runtime";
 
 interface EnsureServerResponse {
   ok?: boolean;
@@ -16,7 +17,5 @@ export async function requestServerStartup(signal?: AbortSignal): Promise<void> 
   if (signal?.aborted) {
     throw signal.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError");
   }
-  if (!response?.ok) {
-    throw new Error(response?.error ?? "Lensmap Serverの起動要求に失敗しました。");
-  }
+  if (!response?.ok) throw new Error(response?.error ?? t("errors.serverStartRequestFailed"));
 }

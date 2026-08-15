@@ -265,7 +265,10 @@ Runtime log、PID、capability、実PDF、SQLite DBはGit管理対象外とす�
 - Server state: TanStack Query
 - active Workspace / active Thread / transient UI state: Zustand + 必要なpersistent storage
 - current tab/document metadata: `chrome.storage.local`
+- display locale preference (`system | en | ja`): `chrome.storage.local`
 - capability: `chrome.storage.session`
+
+Extension localizationは`@wxt-dev/i18n/module`を使用し、`apps/chrome-extension/locales/en.json` / `ja.json`を翻訳SSOTとする。Manifestは`__MSG_*__`、React surfaceは共通runtime、静的HTML surfaceは`data-i18n` localizerを通す。明示locale override時も同じcatalogを参照し、background context menuを含めてstorage changeへ追従する。
 
 active tab/document stateとWorkspace stateを分離する。
 

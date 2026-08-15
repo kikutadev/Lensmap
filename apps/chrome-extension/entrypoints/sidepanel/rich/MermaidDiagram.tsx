@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { t } from "../../../lib/i18n/runtime";
 
 /** Lazy-render Mermaid with strict security so model output cannot inject arbitrary active markup. */
 export function MermaidDiagram({ source }: { source: string }) {
@@ -18,12 +19,12 @@ export function MermaidDiagram({ source }: { source: string }) {
         if (!cancelled) setSvg(rendered.svg);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Mermaid図を描画できませんでした");
+        if (!cancelled) setError(reason instanceof Error ? reason.message : t("errors.mermaidRenderFailed"));
       });
     return () => { cancelled = true; };
   }, [reactId, source]);
 
-  if (error) return <div className="rich-error"><strong>Mermaidを描画できませんでした</strong><span>{error}</span><pre>{source}</pre></div>;
-  if (!svg) return <div className="rich-loading">図を描画中…</div>;
+  if (error) return <div className="rich-error"><strong>{t("errors.mermaidRenderFailed")}</strong><span>{error}</span><pre>{source}</pre></div>;
+  if (!svg) return <div className="rich-loading">{t("visualization.drawingDiagram")}</div>;
   return <div className="mermaid-diagram" dangerouslySetInnerHTML={{ __html: svg }} />;
 }

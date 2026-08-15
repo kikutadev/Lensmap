@@ -1,4 +1,5 @@
 import { browser } from "wxt/browser";
+import { t } from "./i18n/runtime";
 
 const VISUAL_CAPTURE_ORIGIN = "<all_urls>";
 
@@ -10,9 +11,7 @@ const VISUAL_CAPTURE_ORIGIN = "<all_urls>";
 export async function ensureVisualCaptureHostPermission(): Promise<void> {
   if (await browser.permissions.contains({ origins: [VISUAL_CAPTURE_ORIGIN] })) return;
   const granted = await browser.permissions.request({ origins: [VISUAL_CAPTURE_ORIGIN] });
-  if (!granted) {
-    throw new Error("範囲選択には、表示中のPDF画面をキャプチャする追加権限が必要です。許可後にもう一度お試しください。");
-  }
+  if (!granted) throw new Error(t("errors.visualCapturePermission"));
 }
 
 export function visualCaptureOptionalOrigin(): string {

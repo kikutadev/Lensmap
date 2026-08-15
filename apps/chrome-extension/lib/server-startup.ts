@@ -1,4 +1,5 @@
 import { browser } from "wxt/browser";
+import { t } from "./i18n/runtime";
 import { getCapabilityToken, getServerBase, setCapabilityToken } from "./state";
 
 const NATIVE_HOST_NAME = "com.lensmap.launcher";
@@ -66,16 +67,14 @@ async function synchronizeServerCapabilityViaNativeHost(): Promise<void> {
       command: "ensure-server",
     }) as NativeHostResponse;
   } catch (error: unknown) {
-    throw new Error(
-      `Lensmap Serverを自動起動できません。Native Hostの初回セットアップを確認してください。${formatCause(error)}`,
-    );
+    throw new Error(t("errors.serverAutoStartFailed", { cause: formatCause(error) }));
   }
 
   if (!response?.ok) {
-    throw new Error(response?.message ?? "Lensmap Serverの起動要求に失敗しました。");
+    throw new Error(response?.message ?? t("errors.serverStartRequestFailed"));
   }
   if (typeof response.capabilityToken !== "string" || response.capabilityToken.length < 32) {
-    throw new Error("Native HostからLensmap Serverの接続権限を取得できませんでした。");
+    throw new Error(t("errors.serverCredentialUnavailable"));
   }
   await setCapabilityToken(response.capabilityToken);
 
@@ -85,7 +84,7 @@ async function synchronizeServerCapabilityViaNativeHost(): Promise<void> {
     await delay(SERVER_START_POLL_MS);
   }
 
-  throw new Error("Lensmap Serverの起動を要求しましたが、接続可能になるまでにタイムアウトしました。");
+  throw new Error(t("errors.serverStartTimeout"));
 }
 
 /** Await a shared startup operation while allowing an individual caller to stop waiting independently. */

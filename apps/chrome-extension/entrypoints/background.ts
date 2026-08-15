@@ -1,5 +1,7 @@
 import type { SelectionResolutionCandidate } from "@lensmap/shared";
 import { browser } from "wxt/browser";
+import { setLocalePreference, t } from "../lib/i18n/runtime";
+import { loadLocalePreference, subscribeLocalePreference } from "../lib/i18n/settings";
 import { addWorkspaceBook, addWorkspaceSource, createSource, createWorkspace, ensureBook, fetchWorkspace, resolveSelection } from "../lib/api";
 import { startContextMenuAction } from "../lib/context-menu-flow";
 import { ensureLensmapServer } from "../lib/server-startup";
@@ -50,7 +52,7 @@ let contextMenuSetup: Promise<void> | null = null;
 export default defineBackground({
   type: "module",
   main() {
-    void scheduleContextMenuSetup();
+    void initializeBackgroundLocalization();
     void browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error: unknown) => {
       console.warn("Lensmap: failed to configure side-panel behavior", error);
     });
@@ -142,7 +144,7 @@ export default defineBackground({
 
       if (request.type === "get-visual-capture") {
         const capture = pendingVisualCaptures.get(request.captureId);
-        if (!capture) sendResponse({ ok: false, error: "Visual Captureは期限切れです。PDFからもう一度開始してください。" });
+        if (!capture) sendResponse({ ok: false, error: t("errors.visualCaptureExpired") });
         else sendResponse({ ok: true, capture: { captureId: capture.captureId, dataUrl: capture.dataUrl, originTabId: capture.originTabId, bookId: capture.bookId, workspaceId: capture.workspaceId } });
         return false;
       }
@@ -165,6 +167,15 @@ export default defineBackground({
   },
 });
 
+async function initializeBackgroundLocalization(): Promise<void> {
+  setLocalePreference(await loadLocalePreference());
+  await scheduleContextMenuSetup();
+  subscribeLocalePreference((preference) => {
+    setLocalePreference(preference);
+    void scheduleContextMenuSetup();
+  });
+}
+
 function scheduleContextMenuSetup(): Promise<void> {
   if (contextMenuSetup) return contextMenuSetup;
   contextMenuSetup = ensureContextMenus().finally(() => {
@@ -177,17 +188,17 @@ async function ensureContextMenus(): Promise<void> {
   await browser.contextMenus.removeAll();
   browser.contextMenus.create({
     id: MENU_EXPLORE,
-    title: "LensmapでExplore",
+    title: t("contextMenu.explore"),
     contexts: ["selection"],
   });
   browser.contextMenus.create({
     id: MENU_ADD_REFERENCE,
-    title: "Lensmapの参照に追加",
+    title: t("contextMenu.addReference"),
     contexts: ["selection"],
   });
   browser.contextMenus.create({
     id: MENU_CAPTURE_REGION,
-    title: "Lensmapで範囲を選択",
+    title: t("contextMenu.captureRegion"),
     contexts: ["page"],
   });
 }
@@ -195,14 +206,14 @@ async function ensureContextMenus(): Promise<void> {
 /** Start a cancellable capture while invalidating any older capture for the same tab. */
 async function beginCapture(payload: CaptureSelectionPayload) {
   const selectionText = payload.selectionText.trim();
-  if (!selectionText) throw new Error("選択テキストを取得できませんでした");
+  if (!selectionText) throw new Error(t("errors.selectionMissing"));
   if (!/^https?:|^file:/u.test(payload.pageUrl)) {
-    throw new Error(`未対応のPDF URLです: ${payload.pageUrl || "(empty)"}`);
+    throw new Error(t("errors.unsupportedPdfUrl", { url: payload.pageUrl || "(empty)" }));
   }
   if (payload.pageUrl.startsWith("file:")) {
     const allowed = await browser.extension.isAllowedFileSchemeAccess();
     if (!allowed) {
-      throw new Error("ローカルPDFを読むには、Chromeの拡張機能詳細で「ファイルの URL へのアクセスを許可する」を有効にしてください。");
+      throw new Error(t("errors.localPdfPermission"));
     }
   }
 
@@ -212,7 +223,7 @@ async function beginCapture(payload: CaptureSelectionPayload) {
   const captureId = crypto.randomUUID();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    controller.abort(new DOMException("PDFの取り込みがタイムアウトしました", "TimeoutError"));
+    controller.abort(new DOMException(t("errors.pdfImportTimeout"), "TimeoutError"));
   }, CAPTURE_TIMEOUT_MS);
   activeCaptures.set(payload.tabId, { captureId, controller, timeoutId });
 
@@ -246,7 +257,7 @@ async function beginCapture(payload: CaptureSelectionPayload) {
     const resolution = await resolveSelection(book.id, selectionText, controller.signal);
     assertCurrentCapture(payload.tabId, captureId, controller.signal);
     if (resolution.candidates.length === 0) {
-      throw new Error("選択箇所をPDF索引へ再同定できませんでした");
+      throw new Error(t("errors.selectionNotResolved"));
     }
     if (resolution.candidates.length > 1) {
       const ambiguous = await patchTabStateForCapture(payload.tabId, captureId, {
@@ -292,9 +303,9 @@ async function beginCapture(payload: CaptureSelectionPayload) {
 
 async function materializeCandidate(tabId: number, candidateIndex: number) {
   const state = await getTabState(tabId);
-  if (!state.bookId || !state.workspaceId) throw new Error("対象WorkspaceまたはPDFがありません");
+  if (!state.bookId || !state.workspaceId) throw new Error(t("errors.workspaceOrPdfMissing"));
   const candidate = state.resolutionCandidates[candidateIndex];
-  if (!candidate) throw new Error("選択候補が見つかりません");
+  if (!candidate) throw new Error(t("errors.selectionCandidateMissing"));
   return materializeResolvedCandidate(tabId, state.bookId, state.workspaceId, candidate);
 }
 
@@ -379,10 +390,10 @@ function abortCapture(
   if (!active) return false;
   clearTimeout(active.timeoutId);
   const message = reason === "user-cancelled"
-    ? "PDFの取り込みをキャンセルしました"
+    ? t("errors.pdfImportCancelled")
     : reason === "navigation"
-      ? "PDFから移動したため取り込みを中止しました"
-      : "新しい処理のため古い取り込みを中止しました";
+      ? t("errors.pdfImportNavigationCancelled")
+      : t("errors.pdfImportSuperseded");
   active.controller.abort(new DOMException(message, "AbortError"));
   if (release) activeCaptures.delete(tabId);
   return true;
@@ -404,18 +415,18 @@ function assertCurrentCapture(tabId: number, captureId: string, signal: AbortSig
 }
 
 function staleCaptureError(): DOMException {
-  return new DOMException("古いPDF取り込み処理を破棄しました", "AbortError");
+  return new DOMException(t("errors.stalePdfImport"), "AbortError");
 }
 
 function captureErrorMessage(error: unknown, signal: AbortSignal): string {
   if (signal.reason instanceof Error) return signal.reason.message;
-  if (error instanceof DOMException && error.name === "AbortError") return "PDFの取り込みをキャンセルしました";
+  if (error instanceof DOMException && error.name === "AbortError") return t("errors.pdfImportCancelled");
   return toMessage(error);
 }
 
 async function beginVisualCaptureFromMenu(tabId: number): Promise<string> {
   const state = await getTabState(tabId);
-  if (!state.bookId) throw new Error("先にテキスト選択等でPDFをLensmapへ認識させてください");
+  if (!state.bookId) throw new Error(t("errors.recognizePdfFirst"));
   let workspaceId = await getActiveWorkspaceId();
   if (!workspaceId) {
     const workspace = await createWorkspace({ bookId: state.bookId });
@@ -427,13 +438,13 @@ async function beginVisualCaptureFromMenu(tabId: number): Promise<string> {
 
 async function beginVisualCapture(tabId: number, workspaceId: string): Promise<string> {
   const state = await getTabState(tabId);
-  if (!state.bookId || !state.pdfUrl) throw new Error("Visual CaptureはLensmapで認識済みのPDFタブから開始してください");
+  if (!state.bookId || !state.pdfUrl) throw new Error(t("errors.visualCaptureRecognizedPdfOnly"));
   const tab = await browser.tabs.get(tabId);
-  if (tab.windowId === undefined) throw new Error("PDFタブのWindowを特定できませんでした");
+  if (tab.windowId === undefined) throw new Error(t("errors.pdfWindowMissing"));
   const workspace = await fetchWorkspace(workspaceId);
   if (!workspace.books.some((book) => book.id === state.bookId)) await addWorkspaceBook(workspaceId, state.bookId);
   const dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, { format: "png" });
-  if (!dataUrl.startsWith("data:image/png")) throw new Error("表示中PDFのPNG Captureに失敗しました");
+  if (!dataUrl.startsWith("data:image/png")) throw new Error(t("errors.visibleCaptureFailed"));
   const captureId = crypto.randomUUID();
   const timeoutId = setTimeout(() => clearVisualCapture(captureId), CAPTURE_TIMEOUT_MS);
   pendingVisualCaptures.set(captureId, { captureId, dataUrl, originTabId: tabId, bookId: state.bookId, workspaceId, timeoutId });
@@ -485,7 +496,7 @@ async function ensureActiveWorkspaceForBook(bookId: string, bookTitle: string): 
 
 async function openCitation(bookId: string, page: number): Promise<void> {
   const location = await getBookTabLocation(bookId);
-  if (!location) throw new Error("このPDFのURL情報がありません");
+  if (!location) throw new Error(t("errors.pdfLocationMissing"));
   const url = new URL(location.pdfUrl);
   url.hash = `page=${Math.max(1, Math.floor(page))}`;
   const targetUrl = url.toString();
@@ -497,7 +508,7 @@ async function openCitation(bookId: string, page: number): Promise<void> {
     await browser.tabs.update(tabId, { url: targetUrl, active: true });
   } catch {
     const created = await browser.tabs.create({ url: targetUrl, active: true });
-    if (created.id === undefined) throw new Error("PDFタブを開けませんでした");
+    if (created.id === undefined) throw new Error(t("errors.pdfTabOpenFailed"));
     tabId = created.id;
     await setBookTabLocation(bookId, { tabId, pdfUrl: location.pdfUrl });
   }
@@ -517,7 +528,7 @@ async function waitForOwnCitationNavigation(tabId: number, targetUrl: string): P
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  if (urlWasVisible) throw new Error(`PDFページURLへの遷移がタイムアウトしました: ${targetUrl}`);
+  if (urlWasVisible) throw new Error(t("errors.pdfNavigationTimeout", { url: targetUrl }));
 }
 
 function toMessage(error: unknown): string {
