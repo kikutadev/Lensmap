@@ -9,20 +9,24 @@ const landingRoot = path.join(repoRoot, "apps/landing-page");
 const astroCli = path.join(landingRoot, "node_modules/astro/bin/astro.mjs");
 const artifacts = path.join(repoRoot, ".e2e-artifacts/landing-page");
 const port = Number(process.env.LENSMAP_LP_TEST_PORT ?? 4322);
-const origin = `http://127.0.0.1:${port}`;
+const configuredOrigin = process.env.LENSMAP_LP_ORIGIN?.replace(/\/$/, "");
+const origin = configuredOrigin ?? `http://127.0.0.1:${port}`;
 const chromePath = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 await fs.mkdir(artifacts, { recursive: true });
 
-const server = spawn(process.execPath, [astroCli, "preview", "--host", "127.0.0.1", "--port", String(port)], {
-  cwd: landingRoot,
-  env: process.env,
-  stdio: ["ignore", "pipe", "pipe"],
-});
+// Start Astro Preview only for local acceptance. Production acceptance points the same suite at LENSMAP_LP_ORIGIN.
+const server = configuredOrigin
+  ? null
+  : spawn(process.execPath, [astroCli, "preview", "--host", "127.0.0.1", "--port", String(port)], {
+      cwd: landingRoot,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
 let serverOutput = "";
-server.stdout.on("data", (chunk) => { serverOutput += chunk.toString(); });
-server.stderr.on("data", (chunk) => { serverOutput += chunk.toString(); });
+server?.stdout.on("data", (chunk) => { serverOutput += chunk.toString(); });
+server?.stderr.on("data", (chunk) => { serverOutput += chunk.toString(); });
 
 try {
   await waitForServer(`${origin}/`);
@@ -47,7 +51,9 @@ try {
         { name: "prefers-color-scheme", value: testCase.scheme },
         { name: "prefers-reduced-motion", value: "reduce" },
       ]);
-      await page.goto(`${origin}${testCase.url}`, { waitUntil: "networkidle0" });
+      const response = await page.goto(`${origin}${testCase.url}`, { waitUntil: "networkidle0" });
+      const status = response?.status() ?? 0;
+      assert(status >= 200 && status < 400, `${testCase.name}: page returned HTTP ${status || "unknown"}`);
 
       // Exercise lazy product media as an actual reader would by scrolling through the page.
       await page.evaluate(async () => {
@@ -73,6 +79,11 @@ try {
           emptyLinks: anchors.filter((anchor) => !(anchor.getAttribute("href") ?? "").trim()).length,
           canonical: document.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? "",
           ogImage: document.querySelector('meta[property="og:image"]')?.getAttribute("content") ?? "",
+          bodyText: document.body.textContent ?? "",
+          hasMapAnatomy: Boolean(document.querySelector(".map-anatomy")),
+          hasCodexSection: Boolean(document.querySelector(".codex-section")),
+          installSteps: document.querySelectorAll(".install-steps > li").length,
+          faqItems: document.querySelectorAll(".faq-list > details").length,
         };
       });
 
@@ -82,36 +93,52 @@ try {
       assert(result.emptyLinks === 0, `${testCase.name}: empty links found`);
       assert(result.canonical.startsWith("https://lensmap.kikuta.dev/"), `${testCase.name}: invalid canonical ${result.canonical}`);
       assert(result.ogImage.startsWith("https://lensmap.kikuta.dev/og/"), `${testCase.name}: invalid OG image ${result.ogImage}`);
+      assert(!result.bodyText.includes("BlueGate"), `${testCase.name}: internal E2E fixture name BlueGate leaked into the public LP`);
+      assert(result.bodyText.includes("Codex App Server"), `${testCase.name}: Codex App Server is not explained`);
+      assert(result.hasMapAnatomy, `${testCase.name}: Map anatomy is missing`);
+      assert(result.hasCodexSection, `${testCase.name}: Codex architecture section is missing`);
+      assert(result.installSteps === 4, `${testCase.name}: expected 4 installation steps, got ${result.installSteps}`);
+      assert(result.faqItems >= 5, `${testCase.name}: FAQ is incomplete`);
+      assert(
+        testCase.url === "/" ? result.bodyText.includes("AIとのチャットは、あくまでサブ") : result.bodyText.includes("AI chat is deliberately secondary"),
+        `${testCase.name}: chat-as-scratchpad positioning is missing`,
+      );
       assert(consoleErrors.length === 0, `${testCase.name}: console errors: ${consoleErrors.join(" | ")}`);
 
-      await page.screenshot({ path: path.join(artifacts, `${testCase.name}.png`), fullPage: true });
-      console.log(`[lp-e2e] ${testCase.name}: ${result.title}`);
+      const suffix = configuredOrigin ? "-production" : "";
+      await page.screenshot({ path: path.join(artifacts, `${testCase.name}${suffix}.png`), fullPage: true });
+      console.log(`[lp-e2e] ${configuredOrigin ? "production " : ""}${testCase.name}: ${result.title}`);
       await page.close();
     }
   } finally {
     await browser.close();
   }
 } finally {
-  server.kill("SIGTERM");
-  await new Promise((resolve) => server.once("exit", resolve));
+  if (server && server.exitCode === null && server.signalCode === null) {
+    const exited = new Promise((resolve) => server.once("exit", resolve));
+    server.kill("SIGTERM");
+    await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 2_000))]);
+  }
 }
 
 console.log(`[lp-e2e] visual artifacts: ${path.relative(repoRoot, artifacts)}`);
 
+/** Waits until either Astro Preview or the configured production origin is reachable. */
 async function waitForServer(url) {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
     try {
       const response = await fetch(url);
       if (response.ok) return;
     } catch {
-      // Preview server is still starting.
+      // The local preview or remote edge may still be becoming reachable.
     }
     await new Promise((resolve) => setTimeout(resolve, 120));
   }
-  throw new Error(`Timed out waiting for Astro preview at ${url}\n${serverOutput}`);
+  throw new Error(`Timed out waiting for Lensmap LP at ${url}\n${serverOutput}`);
 }
 
+/** Throws a readable acceptance error when a required LP invariant is not met. */
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }

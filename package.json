@@ -39,7 +39,10 @@
     "lp:deploy:preview": "npm run lp:build && wrangler pages deploy apps/landing-page/dist --project-name=lensmap --branch=preview",
     "lp:deploy:production": "npm run lp:check && npm run lp:acceptance && wrangler pages deploy apps/landing-page/dist --project-name=lensmap --branch=main",
     "lp:assets": "node scripts/build-lp-assets.mjs",
-    "lp:acceptance": "npm run lp:build && node e2e/landing-page.mjs"
+    "lp:acceptance": "npm run lp:build && node e2e/landing-page.mjs",
+    "lp:acceptance:production": "LENSMAP_LP_ORIGIN=https://lensmap.kikuta.dev node e2e/landing-page.mjs",
+    "e2e:extension:live:i18n": "npm run e2e:extension:i18n",
+    "e2e:extension:i18n": "npm run build -w @lensmap/chrome-extension && node e2e/chrome-extension-i18n.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

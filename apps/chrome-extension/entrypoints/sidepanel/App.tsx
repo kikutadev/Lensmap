@@ -140,8 +140,8 @@ export function App() {
         </div>
       </header>
 
-      <section className="workspace-bar" aria-label="Reader Workspace">
-        <select value={activeWorkspaceId ?? ""} onChange={(event) => { void switchWorkspace(event.target.value); }} aria-label="Workspace">
+      <section className="workspace-bar" aria-label={t("sidepanel.readerWorkspaceAria")}>
+        <select value={activeWorkspaceId ?? ""} onChange={(event) => { void switchWorkspace(event.target.value); }} aria-label={t("sidepanel.workspaceAria")}>
           {!activeWorkspaceId ? <option value="">{t("sidepanel.selectWorkspace")}</option> : null}
           {workspaces.data?.workspaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
@@ -149,7 +149,7 @@ export function App() {
         {workspace.data ? <span className="workspace-summary">{t("sidepanel.workspaceSummary", { documents: workspace.data.books.length, references: workspace.data.sources.length })}</span> : null}
       </section>
 
-      <nav className="view-tabs" aria-label="Lensmap views">
+      <nav className="view-tabs" aria-label={t("sidepanel.viewsAria")}>
         <button className={view === "explore" ? "active" : ""} onClick={() => setView("explore")}>Explore</button>
         <button className={view === "maps" ? "active" : ""} onClick={() => setView("maps")} disabled={!activeWorkspaceId}>Maps</button>
       </nav>
@@ -280,7 +280,7 @@ function ExploreView({ workspace, tabState }: { workspace: ReaderWorkspace; tabS
   return (
     <div className="explore-view">
       <div className="thread-toolbar">
-        <select aria-label="Explore thread" value={activeThreadId ?? explore.data?.thread?.id ?? ""} onChange={(event) => switchThread(event.target.value || null)}>
+        <select aria-label={t("sidepanel.exploreThreadAria")} value={activeThreadId ?? explore.data?.thread?.id ?? ""} onChange={(event) => switchThread(event.target.value || null)}>
           {!threads.data?.threads.length ? <option value="">{t("sidepanel.firstExplore")}</option> : null}
           {threads.data?.threads.map((thread) => <option key={thread.id} value={thread.id}>{thread.title}</option>)}
         </select>
@@ -609,7 +609,7 @@ function CodexControl({ status, models, selectedModel, usage, onSelectModel }: {
           {usage?.rateLimits?.primary ? <UsageLine label={t("sidepanel.usageWindow")} percent={usage.rateLimits.primary.usedPercent} detail={formatReset(usage.rateLimits.primary.resetsAt)} /> : null}
           {usage?.rateLimits?.secondary ? <UsageLine label={t("sidepanel.longTermWindow")} percent={usage.rateLimits.secondary.usedPercent} detail={formatReset(usage.rateLimits.secondary.resetsAt)} /> : null}
         </section>
-        <section className="model-picker" aria-label="Codex model"><strong>{t("common.model")}</strong>{models.map((model) => (
+        <section className="model-picker" aria-label={t("sidepanel.codexModelAria")}><strong>{t("common.model")}</strong>{models.map((model) => (
           <button key={model.id} type="button" className={model.id === selectedModel ? "active" : ""} onClick={() => onSelectModel(model.id)}>
             <span><strong>{model.displayName}</strong><small>{model.description}</small></span>{model.id === selectedModel ? <Check size={13} /> : null}
           </button>

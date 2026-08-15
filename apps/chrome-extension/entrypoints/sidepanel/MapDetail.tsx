@@ -142,7 +142,7 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
           {supporting.map((block) => <MapBlockView key={block.id} block={block} detail={detail} onOpenSource={onOpenSource} />)}
           {detail.artifact.tags.length ? <div className="tag-row">{detail.artifact.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
 
-          <section className="map-history-section" aria-label="Map history">
+          <section className="map-history-section" aria-label={t("map.historyAria")}>
             <div className="version-row">
               <History size={13} />
               {versions.data?.versions.map((version) => (
@@ -152,7 +152,7 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
             {diff.data ? (
               <details className="diff-panel">
                 <summary><GitCompareArrows size={13} />{t("map.versionChanges", { from: diff.data.fromVersion, to: diff.data.toVersion })}</summary>
-                {diff.data.changes.filter((change) => change.change !== "unchanged").map((change) => <div key={`${change.order}-${change.kind}`}><strong>{change.kind} · {change.change}</strong><pre>{change.afterContent === undefined ? "(removed)" : serializeContent(change.afterContent)}</pre></div>)}
+                {diff.data.changes.filter((change) => change.change !== "unchanged").map((change) => <div key={`${change.order}-${change.kind}`}><strong>{change.kind} · {change.change}</strong><pre>{change.afterContent === undefined ? t("map.removed") : serializeContent(change.afterContent)}</pre></div>)}
               </details>
             ) : null}
           </section>
@@ -222,7 +222,7 @@ function MapVisualReference({ bookId, imageAssetId, recognizedText }: { bookId: 
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [bookId, imageAssetId]);
-  return <figure className="map-visual-reference">{url ? <img src={url} alt={recognizedText || "Visual Source"} /> : <div className="map-visual-placeholder">Visual Source</div>}{recognizedText ? <figcaption>{recognizedText}</figcaption> : null}</figure>;
+  return <figure className="map-visual-reference">{url ? <img src={url} alt={recognizedText || t("map.visualSourceAlt")} /> : <div className="map-visual-placeholder">{t("map.visualSourcePlaceholder")}</div>}{recognizedText ? <figcaption>{recognizedText}</figcaption> : null}</figure>;
 }
 
 function semanticEditableText(block: MapBlock): string | null {

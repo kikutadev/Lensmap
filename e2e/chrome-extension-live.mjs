@@ -15,7 +15,8 @@ const extensionPath = resolve(root, ".extension-e2e-build");
 const dataDir = resolve(root, ".extension-e2e-data");
 const migrationsDir = resolve(root, "apps/server/drizzle");
 const localPdfPath = resolve(root, ".extension-e2e-local.pdf");
-const visualAcceptanceDir = resolve(root, ".e2e-artifacts/lensmap-sidepanel");
+const locale = process.env.LENSMAP_E2E_LOCALE === "en" ? "en" : "ja";
+const visualAcceptanceDir = resolve(root, ".e2e-artifacts/lensmap-sidepanel", locale);
 const nodeBin = process.env.LENSMAP_SERVER_NODE ?? process.execPath;
 const serverPort = await findFreeLoopbackPort();
 const pdfPort = await findFreeLoopbackPort();
@@ -25,8 +26,10 @@ const pdfUrl = `http://127.0.0.1:${pdfPort}/book.pdf`;
 const duplicatePdfUrl = `http://127.0.0.1:${pdfPort}/duplicate.pdf`;
 const authenticatedLoginUrl = `http://127.0.0.1:${pdfPort}/auth/login`;
 const authenticatedPdfUrl = `http://127.0.0.1:${pdfPort}/auth/book.pdf`;
-const selectedSentence = "Remote cache invalidation is delegated to BlueGate, which is defined later in this book.";
-const question = "この抜粋だけではBlueGateの定義がありません。Workspace内を追加参照してBlueGateの定義を日本語で説明してください。書籍本文に基づく説明には必ずSource IDを付けてください。";
+const selectedSentence = "Cache invalidation is required after an origin update, but the exact rule is defined later in this book.";
+const question = locale === "ja"
+  ? "この抜粋だけではcache invalidationの具体的な意味が分かりません。Workspace内を追加参照して定義を日本語で説明してください。書籍本文に基づく説明には必ずSource IDを付けてください。"
+  : "This excerpt does not define cache invalidation precisely. Read additional context in the Workspace, explain the definition in English, and cite every claim grounded in the book with a Source ID.";
 
 rmSync(dataDir, { recursive: true, force: true });
 rmSync(localPdfPath, { force: true });
@@ -81,8 +84,8 @@ try {
   assert(worker, "Extension service worker was not created");
   const extensionId = new URL(workerTarget.url()).host;
 
-  await worker.evaluate(async ({ configuredServerBase, token }) => {
-    await chrome.storage.local.set({ "lensmap.serverBase": configuredServerBase, "lensmap.localePreference": "ja" });
+  await worker.evaluate(async ({ configuredServerBase, token, displayLocale }) => {
+    await chrome.storage.local.set({ "lensmap.serverBase": configuredServerBase, "lensmap.localePreference": displayLocale });
     await chrome.storage.session.set({ "lensmap.capabilityToken": token });
     let lastError = null;
     for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -99,7 +102,7 @@ try {
       }
     }
     throw lastError ?? new Error("Canonical Lensmap context menus were not registered");
-  }, { configuredServerBase: serverBase, token: capabilityToken });
+  }, { configuredServerBase: serverBase, token: capabilityToken, displayLocale: locale });
 
   const pdfPage = await browser.newPage();
   await pdfPage.goto(pdfUrl);
@@ -121,18 +124,14 @@ try {
   );
   const sidePanel = await sideTarget.asPage();
   assert(sidePanel, "Chrome Side Panel target could not be controlled");
-  await sidePanel.setViewport({ width: 390, height: 900, deviceScaleFactor: 1 });
+  await sidePanel.setViewport({ width: 420, height: 900, deviceScaleFactor: 1 });
 
   // First-run onboarding is lightweight, dismissible, and must not return after dismissal.
   await sidePanel.waitForSelector(".onboarding-card", { timeout: 15_000 });
   const onboardingText = await sidePanel.$eval(".onboarding-card", (element) => element.textContent ?? "");
   for (const label of ["Focus", "Explore", "Map", "Return"]) assert(onboardingText.includes(label), `Onboarding is missing ${label}`);
   await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "01-onboarding.png") });
-  await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll(".onboarding-actions button")].find((candidate) => candidate.textContent?.includes("使い始める"));
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Onboarding dismiss button not found");
-    button.click();
-  });
+  await sidePanel.click(".onboarding-actions .primary-button");
   await sidePanel.waitForFunction(() => !document.querySelector(".onboarding-card"), { timeout: 10_000 });
   assert.equal(await worker.evaluate(async () => (await chrome.storage.local.get("lensmap.onboardingDismissed"))["lensmap.onboardingDismissed"]), true);
   await sidePanel.reload({ waitUntil: "domcontentloaded" });
@@ -166,7 +165,7 @@ try {
   }
   const sourceDisplay = await sidePanel.$eval(".source-card", (element) => element.textContent ?? "");
   assert(sourceDisplay.includes("p.1"));
-  assert(sourceDisplay.includes("Remote cache invalidation"));
+  assert(sourceDisplay.includes("Cache invalidation is required"));
 
   await sendExplore(sidePanel, question);
   await sidePanel.waitForFunction(
@@ -175,7 +174,7 @@ try {
   );
   await sidePanel.waitForSelector(".retrieval-audit", { timeout: 30_000 });
   await sidePanel.waitForSelector(".map-save-state", { timeout: 30_000 });
-  await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "02-explore-response.png"), fullPage: true });
+  await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "02-explore-response.png") });
 
   const explore = await apiJson(`/workspaces/${workspaceId}/explore`);
   const assistant = [...(explore.thread?.messages ?? [])].reverse().find((message) => message.role === "assistant");
@@ -224,7 +223,17 @@ try {
   const captureTarget = await captureTargetPromise;
   const capturePage = await captureTarget.asPage();
   assert(capturePage, "Visual Capture Surface was not opened");
-  await capturePage.waitForSelector("#capture-image:not([hidden])", { timeout: 15_000 });
+  try {
+    await capturePage.waitForSelector("#capture-image:not([hidden])", { timeout: 15_000 });
+  } catch (error) {
+    const diagnostics = await capturePage.evaluate(() => ({
+      text: document.body.textContent,
+      status: document.querySelector("#status")?.textContent,
+      statusClass: document.querySelector("#status")?.className,
+      imageHidden: document.querySelector("#capture-image")?.hasAttribute("hidden"),
+    }));
+    throw new Error(`Visual Capture Surface did not render image: ${JSON.stringify(diagnostics)}`, { cause: error });
+  }
   const imageBox = await capturePage.$eval("#capture-image", (element) => {
     const rect = element.getBoundingClientRect();
     return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
@@ -275,26 +284,18 @@ try {
   await sidePanel.waitForSelector(".map-detail", { timeout: 30_000 });
   await sidePanel.waitForSelector(".viz-definition", { timeout: 30_000 });
   const renderedDefinition = await sidePanel.$eval(".viz-card", (element) => element.textContent ?? "");
-  assert(renderedDefinition.includes("BlueGate"), "Primary definition renderer did not show the structured term");
+  assert(renderedDefinition.toLowerCase().includes("cache invalidation"), "Primary definition renderer did not show the structured term");
   assert((await sidePanel.$eval(".viz-definition", (element) => element.textContent ?? "")).trim().length > 0, "Primary definition renderer did not show definition content");
   assert.equal(await sidePanel.$(".rich-error"), null, "Structured definition fell back to an invalid visualization error");
   await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "04-map-detail.png"), fullPage: true });
-  await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll(".map-toolbar button")].find((candidate) => candidate.textContent?.includes("編集"));
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Map edit button not found");
-    button.click();
-  });
+  await sidePanel.click(".map-toolbar .secondary-button");
   await sidePanel.waitForSelector(".map-editor textarea");
   const firstDraft = await sidePanel.$eval(".map-editor textarea", (element) => element.value);
   await sidePanel.$eval(".map-editor textarea", (element, value) => {
     element.value = value;
     element.dispatchEvent(new Event("input", { bubbles: true }));
-  }, `${firstDraft}\n\nユーザー編集メモ`);
-  await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll(".editor-actions button")].find((candidate) => candidate.textContent?.includes("新しいversionとして保存"));
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Map version save button not found");
-    button.click();
-  });
+  }, `${firstDraft}\n\n${locale === "ja" ? "ユーザー編集メモ" : "User edit note"}`);
+  await sidePanel.click(".editor-actions .primary-button");
   await sidePanel.waitForFunction(() => document.querySelector(".map-meta")?.textContent?.includes("v2"), { timeout: 30_000 });
   const mapV2 = await apiJson(`/maps/${firstMapId}`);
   assert.equal(mapV2.artifact.version, 2, "Map edit did not create immutable v2");
@@ -307,11 +308,7 @@ try {
   });
   await sidePanel.waitForSelector("select[aria-label='Explore thread']");
   const beforeThreads = await apiJson(`/workspaces/${workspaceId}/explore/threads`);
-  await sidePanel.evaluate(() => {
-    const button = document.querySelector('button[aria-label="新しいExplore"]');
-    if (!(button instanceof HTMLButtonElement)) throw new Error("New Explore button not found");
-    button.click();
-  });
+  await sidePanel.click(".thread-toolbar button.secondary-button");
   await waitFor(async () => (await apiJson(`/workspaces/${workspaceId}/explore/threads`)).threads.length > beforeThreads.threads.length, 30_000, "New Explore thread was not created");
 
   // A second PDF can join the same Workspace without replacing the first PDF/Explore state.
@@ -391,16 +388,26 @@ try {
   assert(helpText.includes("Reader Workspace"));
   assert(helpText.includes("Visual Source"));
   assert(helpText.includes("Maps"));
-  assert(helpText.includes("はじめ方"), "Help did not honor the forced Japanese locale");
+  assert(helpText.includes(locale === "ja" ? "はじめ方" : "Getting started"), "Help did not honor the forced locale");
   assert(helpText.includes("Codex App Server"), "Help does not document Codex App Server");
 
   // Runtime override must update already-open React and static extension pages without a rebuild.
-  await worker.evaluate(async () => chrome.storage.local.set({ "lensmap.localePreference": "en" }));
-  await sidePanel.waitForFunction(() => document.querySelector('button[aria-label="New Explore"]'), { timeout: 10_000 });
-  await helpPage.waitForFunction(() => document.body.textContent?.includes("Getting started"), { timeout: 10_000 });
-  assert.equal(await helpPage.$eval("#language-preference", (element) => element.value), "en");
-  assert.equal(await helpPage.$eval("html", (element) => element.lang), "en");
-  assert((await sidePanel.$eval("body", (element) => element.textContent ?? "")).includes("References"), "Side Panel did not switch to English");
+  const switchedLocale = locale === "ja" ? "en" : "ja";
+  await worker.evaluate(async (displayLocale) => chrome.storage.local.set({ "lensmap.localePreference": displayLocale }), switchedLocale);
+  await sidePanel.waitForFunction(
+    (displayLocale) => displayLocale === "en"
+      ? document.body.textContent?.includes("References")
+      : document.body.textContent?.includes("参照"),
+    { timeout: 10_000 },
+    switchedLocale,
+  );
+  await helpPage.waitForFunction(
+    (displayLocale) => document.body.textContent?.includes(displayLocale === "en" ? "Getting started" : "はじめ方"),
+    { timeout: 10_000 },
+    switchedLocale,
+  );
+  assert.equal(await helpPage.$eval("#language-preference", (element) => element.value), switchedLocale);
+  assert.equal(await helpPage.$eval("html", (element) => element.lang), switchedLocale);
 
   console.log(JSON.stringify({
     extensionId,
@@ -438,15 +445,11 @@ async function captureText(probePage, payload) {
 }
 
 async function sendExplore(sidePanel, text) {
-  const selector = 'textarea[aria-label="質問"]';
+  const selector = ".composer textarea";
   await sidePanel.waitForSelector(selector, { timeout: 30_000 });
   await sidePanel.click(selector);
   await sidePanel.type(selector, text);
-  await sidePanel.evaluate(() => {
-    const button = [...document.querySelectorAll(".composer button")].find((candidate) => candidate.textContent?.includes("送信"));
-    if (!(button instanceof HTMLButtonElement)) throw new Error("Explore send button not found");
-    button.click();
-  });
+  await sidePanel.click(".composer button");
 }
 
 async function activeTabId(worker) {

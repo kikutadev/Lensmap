@@ -2,9 +2,9 @@ import { createServer } from "node:http";
 
 const books = {
   "/book.pdf": createPdf([
-    ["Chapter 1 - Fast Path", "Remote cache invalidation is delegated to BlueGate, which is defined later in this book."],
+    ["Chapter 1 - Fast Path", "Cache invalidation is required after an origin update, but the exact rule is defined later in this book."],
     ["Chapter 2 - Local Cache", "Local caches reduce origin load and keep hot reads close to callers."],
-    ["Chapter 3 - BlueGate", "BlueGate is a consistency coordinator for remote cache invalidation."],
+    ["Chapter 3 - Cache Invalidation", "Cache invalidation is the process of removing or marking cached data stale when the underlying source changes."],
   ]),
   "/duplicate.pdf": createPdf([
     ["Chapter A - First occurrence", "Shared statement appears in two chapters."],

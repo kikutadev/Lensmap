@@ -10,6 +10,8 @@ const { locale, copy } = Astro.props;
 const isJa = locale === "ja";
 const languageHref = isJa ? "/en/" : "/";
 const languageLabel = isJa ? "EN" : "日本語";
+const releaseUrl = "https://github.com/kikutadev/Lensmap/releases";
+const repoUrl = "https://github.com/kikutadev/Lensmap";
 ---
 <div class="site-shell">
   <header class="site-header" aria-label="Lensmap">
@@ -20,6 +22,8 @@ const languageLabel = isJa ? "EN" : "日本語";
     <nav class="site-nav" aria-label={isJa ? "主要ナビゲーション" : "Primary navigation"}>
       <a href="#how">{copy.navHow}</a>
       <a href="#maps">{copy.navMaps}</a>
+      <a href="#install">{copy.navInstall}</a>
+      <a href="#faq">{copy.navFaq}</a>
       <a href="https://github.com/kikutadev/Lensmap/blob/main/PRIVACY.md">{copy.navPrivacy}</a>
       <a class="language-link" href={languageHref} hreflang={isJa ? "en" : "ja"}>{languageLabel}</a>
     </nav>
@@ -32,7 +36,7 @@ const languageLabel = isJa ? "EN" : "日本語";
         <h1 id="hero-title">{copy.heroTitle.split("\n").map((line, index) => <>{index > 0 && <br />}<span>{line}</span></>)}</h1>
         <p class="hero-body">{copy.heroBody}</p>
         <div class="hero-actions">
-          <a class="button primary" href="https://github.com/kikutadev/Lensmap">{copy.primaryCta}</a>
+          <a class="button primary" href={repoUrl}>{copy.primaryCta}</a>
           <a class="button secondary" href="#how">{copy.secondaryCta}</a>
         </div>
         <p class="hero-hint">{copy.heroHint}</p>
@@ -47,14 +51,31 @@ const languageLabel = isJa ? "EN" : "日本語";
           <div class="reader-stage">
             <article class="pdf-page" aria-label={isJa ? "PDFの例" : "Example PDF passage"}>
               <div class="pdf-kicker">Chapter 4 · Consistency</div>
-              <h2>Cache invalidation and coordination</h2>
-              <p>Remote cache invalidation is delegated to <strong>BlueGate</strong>, which is defined later in this book.</p>
-              <p class="selected-passage">A consistency coordinator determines when invalidation is safe to publish across remote replicas.</p>
-              <p>The mechanism depends on the ordering guarantees discussed in the following section.</p>
+              <h2>Cache invalidation</h2>
+              <p>Cache invalidation is required after an origin update, but the exact rule is defined later in this book.</p>
+              <p class="selected-passage">A stale cached copy must not be returned after the source value has changed.</p>
+              <p>The following section explains when a cache entry becomes invalid and how readers obtain a fresh value.</p>
               <div class="margin-note">p. 42</div>
             </article>
-            <div class="panel-shot">
-              <img src="/product/explore-response.png" alt={isJa ? "実際のLensmap Explore画面。選択箇所に加えてAIが追加参照した根拠と回答を表示している。" : "Actual Lensmap Explore UI showing a selected passage, AI-added evidence, and a grounded answer."} width="505" height="905" loading="eager" decoding="async" />
+            <div class="panel-shot" aria-label={isJa ? "Lensmap Exploreの画面例" : "Example Lensmap Explore UI"}>
+              <div class="panel-ui-preview">
+                <div class="panel-preview-head"><strong>Lensmap</strong><span>GPT-5.6 Sol</span></div>
+                <div class="panel-preview-tabs"><strong>Explore</strong><span>Maps</span></div>
+                <div class="panel-preview-reference">
+                  <small>S1 · PDF p.42 · {copy.selectedEvidenceLabel}</small>
+                  <p>A stale cached copy must not be returned after the source value has changed.</p>
+                </div>
+                <div class="panel-preview-question">
+                  {isJa ? "この一節だけではcache invalidationの具体的な意味が分かりません。" : "This passage does not define cache invalidation precisely."}
+                </div>
+                <div class="panel-preview-answer">
+                  <small>Lensmap</small>
+                  <p>{isJa ? "Cache invalidationは、更新後に古くなったキャッシュを無効化し、後続の読み取りで古い値を返さないための仕組みです。" : "Cache invalidation marks stale cached copies as unusable after an update so later reads do not return outdated data."}</p>
+                  <div class="preview-citations"><span>S1 · p.42</span><span>S2 · p.68 · {copy.aiAddedLabel}</span></div>
+                  <div class="preview-map-saved">✓ {copy.mapSavedLabel}</div>
+                </div>
+                <div class="panel-preview-composer">{isJa ? "この一節について聞く…" : "Ask about this passage…"}<span>↗</span></div>
+              </div>
             </div>
           </div>
         </div>
@@ -69,7 +90,7 @@ const languageLabel = isJa ? "EN" : "日本語";
     <section id="how" class="core-loop section-pad" aria-labelledby="how-title">
       <div class="section-heading compact">
         <p class="eyebrow">Focus → Expand → Map</p>
-        <h2 id="how-title">{isJa ? "読書の主導権は、そのまま。" : "Keep reading in the driver’s seat."}</h2>
+        <h2 id="how-title">{copy.ownershipTitle}</h2>
       </div>
       <ol class="loop-grid">
         <li>
@@ -88,6 +109,15 @@ const languageLabel = isJa ? "EN" : "日本語";
           <p>{copy.mapBody}</p>
         </li>
       </ol>
+
+      <aside class="chat-note" aria-label={copy.chatTitle}>
+        <div class="chat-note-mark" aria-hidden="true">⌘</div>
+        <div>
+          <p class="eyebrow">{copy.chatEyebrow}</p>
+          <h3>{copy.chatTitle}</h3>
+          <p>{copy.chatBody}</p>
+        </div>
+      </aside>
     </section>
 
     <section id="maps" class="map-showcase section-pad" aria-labelledby="maps-title">
@@ -96,34 +126,56 @@ const languageLabel = isJa ? "EN" : "日本語";
         <h2 id="maps-title">{copy.mapsTitle}</h2>
         <p>{copy.mapsBody}</p>
       </div>
-      <div class="map-gallery">
-        <figure class="map-window list-window">
-          <img src="/product/map-list.png" alt={isJa ? "LensmapのMaps一覧の実画面" : "Actual Lensmap Maps library"} width="409" height="905" loading="lazy" decoding="async" />
-          <figcaption>{isJa ? "Maps library — 理解を会話ログではなく成果物として一覧する。" : "Maps library — outcomes instead of a pile of chat logs."}</figcaption>
-        </figure>
-        <figure class="map-window detail-window">
-          <img src="/product/map-detail.png" alt={isJa ? "LensmapのMap詳細の実画面。説明とEvidenceが一体になっている。" : "Actual Lensmap Map detail combining explanation and evidence."} width="409" height="905" loading="lazy" decoding="async" />
-          <figcaption>{isJa ? "Map detail — Visual、説明、Evidenceを同じ文脈で残す。" : "Map detail — visual understanding, explanation, and evidence together."}</figcaption>
-        </figure>
-        <article class="artifact-preview" aria-label={isJa ? "Mapの構成例" : "Example Map composition"}>
-          <div class="artifact-topline"><span>Map</span><span>2 refs</span></div>
-          <h3>BlueGate</h3>
-          <p class="artifact-lead">{isJa ? "リモートキャッシュ無効化のための整合性コーディネータ" : "Consistency coordinator for remote cache invalidation"}</p>
-          <div class="diagram" aria-hidden="true">
-            <div class="node">Request</div>
-            <span>→</span>
-            <div class="node accent-node">BlueGate</div>
-            <span>→</span>
-            <div class="node">Invalidate</div>
+
+      <div class="map-anatomy" aria-label={copy.mapAnatomyLabel}>
+        <div class="map-anatomy-header">
+          <div>
+            <span class="map-anatomy-kicker">{copy.mapAnatomyLabel}</span>
+            <h3>{copy.mapDefinition}</h3>
           </div>
-          <ul>
-            <li>{isJa ? "対象はリモートキャッシュの無効化" : "Coordinates remote cache invalidation"}</li>
-            <li>{isJa ? "無効化処理の委譲先" : "Receives delegated invalidation work"}</li>
-            <li>{isJa ? "具体的な調整方法は後続本文へ戻って確認" : "Exact coordination method remains traceable to the source"}</li>
-          </ul>
-          <div class="evidence-row"><span>S1 · PDF p.1</span><span>S2 · PDF p.3</span></div>
-        </article>
+          <span class="semantic-badge">Definition</span>
+        </div>
+
+        <div class="map-understanding">
+          <div class="understanding-label">{isJa ? "理解" : "Understanding"}</div>
+          <p>{copy.mapDefinitionBody}</p>
+          <div class="concept-flow" aria-label={isJa ? "更新から新しい値の読み取りまでの流れ" : "Flow from update to fresh read"}>
+            <div><small>1</small><strong>{isJa ? "Origin更新" : "Origin update"}</strong></div>
+            <span aria-hidden="true">→</span>
+            <div><small>2</small><strong>{isJa ? "Cacheが古くなる" : "Cache becomes stale"}</strong></div>
+            <span aria-hidden="true">→</span>
+            <div class="accent"><small>3</small><strong>{isJa ? "無効化" : "Invalidate"}</strong></div>
+            <span aria-hidden="true">→</span>
+            <div><small>4</small><strong>{isJa ? "新しい値を読む" : "Read fresh value"}</strong></div>
+          </div>
+        </div>
+
+        <section class="evidence-stack" aria-labelledby={`evidence-${locale}`}>
+          <div class="evidence-heading">
+            <h4 id={`evidence-${locale}`}>{copy.evidenceTitle}</h4>
+            <span>2 refs</span>
+          </div>
+          <article class="evidence-card selected-evidence">
+            <div class="evidence-meta">
+              <span class="provenance-dot"></span>
+              <strong>S1 · PDF p.42</strong>
+              <em>{copy.selectedEvidenceLabel}</em>
+            </div>
+            <p>“A stale cached copy must not be returned after the source value has changed.”</p>
+            <span class="pdf-backlink">{copy.backToPdf} · p.42 ↗</span>
+          </article>
+          <article class="evidence-card ai-evidence">
+            <div class="evidence-meta">
+              <span class="provenance-dot"></span>
+              <strong>S2 · PDF p.68</strong>
+              <em>{copy.aiEvidenceLabel}</em>
+            </div>
+            <p>“Invalidation marks a cached representation as unusable so the next read obtains a fresh value.”</p>
+            <span class="pdf-backlink">{copy.backToPdf} · p.68 ↗</span>
+          </article>
+        </section>
       </div>
+      <p class="map-anatomy-note">{isJa ? "※ Mapの情報構造を説明するための概念図です。実際のMapもEvidenceから該当PDFページへ戻れます。" : "Conceptual anatomy of a Map. Actual Maps also link Evidence back to the corresponding PDF page."}</p>
     </section>
 
     <section class="principles section-pad" aria-label={isJa ? "Lensmapの原則" : "Lensmap principles"}>
@@ -139,16 +191,81 @@ const languageLabel = isJa ? "EN" : "日本語";
       </article>
     </section>
 
-    <section class="install section-pad" aria-labelledby="install-title">
-      <div>
+    <section class="codex-section section-pad" aria-labelledby="codex-title">
+      <div class="section-heading wide">
+        <p class="eyebrow">{copy.codexEyebrow}</p>
+        <h2 id="codex-title">{copy.codexTitle}</h2>
+        <p>{copy.codexBody}</p>
+      </div>
+      <div class="codex-architecture" aria-label={isJa ? "LensmapとCodex App Serverの構成" : "Lensmap and Codex App Server architecture"}>
+        <div class="architecture-node">
+          <span>Chrome</span>
+          <strong>Lensmap Side Panel</strong>
+          <small>{isJa ? "Focus / Explore / Maps" : "Focus / Explore / Maps"}</small>
+        </div>
+        <span class="architecture-arrow" aria-hidden="true">→</span>
+        <div class="architecture-node local-node">
+          <span>Local</span>
+          <strong>Lensmap Server</strong>
+          <small>{isJa ? "PDF索引・Evidence・retrieval" : "PDF index · Evidence · retrieval"}</small>
+        </div>
+        <span class="architecture-arrow" aria-hidden="true">→</span>
+        <div class="architecture-node codex-node">
+          <span>AI runtime</span>
+          <strong>Codex App Server</strong>
+          <small>{isJa ? "認証済みCodex session" : "Authenticated Codex session"}</small>
+        </div>
+      </div>
+      <ul class="codex-points">
+        <li>{copy.codexPoint1}</li>
+        <li>{copy.codexPoint2}</li>
+        <li>{copy.codexPoint3}</li>
+      </ul>
+    </section>
+
+    <section id="install" class="install section-pad" aria-labelledby="install-title">
+      <div class="install-intro">
         <p class="eyebrow">{copy.installEyebrow}</p>
         <h2 id="install-title">{copy.installTitle}</h2>
         <p>{copy.installBody}</p>
-        <p class="install-note">{copy.installNote}</p>
       </div>
-      <div class="install-actions">
-        <a class="button primary" href="https://github.com/kikutadev/Lensmap">{copy.primaryCta}</a>
-        <a class="text-link" href="https://github.com/kikutadev/Lensmap#readme">README ↗</a>
+      <ol class="install-steps">
+        <li><span>1</span><div><strong>{copy.installStep1Title}</strong><p>{copy.installStep1Body}</p></div></li>
+        <li><span>2</span><div><strong>{copy.installStep2Title}</strong><p>{copy.installStep2Body}</p></div></li>
+        <li><span>3</span><div><strong>{copy.installStep3Title}</strong><p>{copy.installStep3Body}</p></div></li>
+        <li><span>4</span><div><strong>{copy.installStep4Title}</strong><p>{copy.installStep4Body}</p></div></li>
+      </ol>
+      <div class="source-install">
+        <div>
+          <span class="source-install-label">{isJa ? "今すぐsource buildで試す" : "Try the source build now"}</span>
+          <p>{isJa ? "Node.js 22.13以上がある開発環境では、次の3コマンドでbuildとNative Host登録まで進められます。" : "With Node.js 22.13 or later, these three commands build Lensmap and register the Native Host."}</p>
+        </div>
+        <pre><code>npm install
+npm run build
+npm run native-host:install</code></pre>
+        <p class="source-install-path">Load unpacked: <code>apps/chrome-extension/.output/chrome-mv3</code></p>
+      </div>
+      <div class="install-footer">
+        <p class="install-note">{copy.installNote}</p>
+        <div class="install-actions">
+          <a class="button primary" href="https://github.com/kikutadev/Lensmap#開発セットアップ">{isJa ? "READMEで試す" : "Try from the README"}</a>
+          <a class="text-link" href={releaseUrl}>{isJa ? "GitHub Releases（準備中）↗" : "GitHub Releases (preparing) ↗"}</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="faq section-pad" aria-labelledby="faq-title">
+      <div class="section-heading compact">
+        <p class="eyebrow">{copy.faqEyebrow}</p>
+        <h2 id="faq-title">{copy.faqTitle}</h2>
+      </div>
+      <div class="faq-list">
+        {copy.faqItems.map((item) => (
+          <details>
+            <summary>{item.question}<span aria-hidden="true">＋</span></summary>
+            <p>{item.answer}</p>
+          </details>
+        ))}
       </div>
     </section>
   </main>
@@ -160,7 +277,7 @@ const languageLabel = isJa ? "EN" : "日本語";
     </div>
     <p>{copy.footerLine}</p>
     <div class="footer-links">
-      <a href="https://github.com/kikutadev/Lensmap">GitHub</a>
+      <a href={repoUrl}>GitHub</a>
       <a href="https://github.com/kikutadev/Lensmap/blob/main/PRIVACY.md">Privacy</a>
       <a href="https://github.com/kikutadev/Lensmap/blob/main/SECURITY.md">Security</a>
       <a href="https://github.com/kikutadev/Lensmap/blob/main/LICENSE">Apache-2.0</a>

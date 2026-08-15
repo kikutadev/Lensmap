@@ -133,7 +133,12 @@
     "resetAt": "Resets {value}",
     "cannotConnect": "Cannot connect to Lensmap",
     "reconnectHelp": "Lensmap normally starts automatically. If this persists after setup, check the Native Host registration.",
-    "reconnect": "Reconnect"
+    "reconnect": "Reconnect",
+    "readerWorkspaceAria": "Reader Workspace",
+    "workspaceAria": "Workspace",
+    "viewsAria": "Lensmap views",
+    "exploreThreadAria": "Explore thread",
+    "codexModelAria": "Codex model"
   },
   "map": {
     "loading": "Loading Map…",
@@ -154,7 +159,11 @@
     "semanticHierarchy": "Hierarchy",
     "semanticTimeline": "Timeline",
     "semanticQuantitative": "Quantitative",
-    "semanticSynthesis": "Synthesis"
+    "semanticSynthesis": "Synthesis",
+    "historyAria": "Map history",
+    "removed": "(removed)",
+    "visualSourceAlt": "Visual Source",
+    "visualSourcePlaceholder": "Visual Source"
   },
   "source": {
     "aiAdded": "Added by AI",

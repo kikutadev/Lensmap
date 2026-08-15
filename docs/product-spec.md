@@ -323,6 +323,7 @@ English  英語へ明示固定
 - locale変更でReader Workspace、Explore、Map、Capture等の製品状態をresetしない
 - AI生成本文の言語はUI localeとは別概念とし、UI翻訳で生成済み回答そのものを書き換えない
 - 日本語LPには日本語Extension実画面、英語LPには英語Extension実画面を使用する
+- i18n受入は機能full E2Eから分離したEN/JA smoke E2Eで保証し、既に開いているSide Panel / Helpのruntime切替と設定永続化を検証する
 
 ## 12. ローカル保存と外部送信
 
