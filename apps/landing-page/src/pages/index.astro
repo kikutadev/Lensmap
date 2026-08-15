@@ -1,0 +1,9 @@
+---
+import LandingPage from "../components/LandingPage.astro";
+import { copy } from "../content/site";
+import BaseLayout from "../layouts/BaseLayout.astro";
+const c = copy.ja;
+---
+<BaseLayout lang={c.lang} title={c.title} description={c.description} canonicalPath="/">
+  <LandingPage locale="ja" copy={c} />
+</BaseLayout>

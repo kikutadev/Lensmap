@@ -35,3 +35,5 @@ release-dist/
 
 native/macos/bin/
 .tmp/
+# Astro generated cache.
+**/.astro/

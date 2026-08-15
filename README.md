@@ -259,6 +259,20 @@ assets/               branding / release artwork
 
 完了済みの実装計画、移行評価、自己レビュー記録は現行仕様へ反映後、公開リポジトリには保持しません。Git history が変更履歴の正本です。
 
+## Landing Page
+
+公開サイトは Astro の static site として `apps/landing-page` に置き、`https://lensmap.kikuta.dev` を canonical URL とします。Cloudflare Pages は Git 自動連携ではなく Wrangler Direct Upload を使用します。
+
+```bash
+npm run dev:lp
+npm run lp:check
+npm run lp:acceptance
+npm run lp:deploy:preview
+npm run lp:deploy:production
+```
+
+LP の product media は実 Lensmap の E2E screenshot を一次素材とし、OG など固定サイズの marketing still だけを `@napi-rs/canvas` で deterministic に生成します。Remotion は使用しません。
+
 ## Security / Privacy / License
 
 - [Security Policy](SECURITY.md)

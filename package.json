@@ -16,7 +16,7 @@
     "check": "npm run typecheck && npm run test && npm run lint && npm run build && npm run extension:permissions:check",
     "e2e:extension:live": "npm run build:packages && npm run build -w @lensmap/server && npm run build -w @lensmap/chrome-extension && node scripts/run-extension-e2e.mjs e2e/chrome-extension-live.mjs",
     "build:packages": "npm run build -w @lensmap/shared && npm run build -w @lensmap/visualization",
-    "build:apps": "npm run build -w @lensmap/server && npm run build -w @lensmap/chrome-extension",
+    "build:apps": "npm run build -w @lensmap/server && npm run build -w @lensmap/chrome-extension && npm run build -w @lensmap/landing-page",
     "e2e:extension:real": "npm run build:packages && npm run build -w @lensmap/server && npm run build -w @lensmap/chrome-extension && node scripts/run-extension-e2e.mjs e2e/chrome-extension-real-pdf-smoke.mjs",
     "e2e:extension:native-startup": "npm run build:packages && npm run build -w @lensmap/server && npm run build -w @lensmap/chrome-extension && node scripts/native-host-manager.mjs install && node scripts/run-extension-e2e.mjs e2e/chrome-extension-native-startup.mjs",
     "doctor:extension": "node scripts/extension-doctor.mjs",
@@ -32,7 +32,14 @@
     "extension:permissions:check": "node scripts/check-extension-permissions.mjs",
     "icons:generate": "node scripts/generate-icons.mjs",
     "release:build": "node scripts/build-release.mjs",
-    "build:native": "node scripts/build-native-helpers.mjs"
+    "build:native": "node scripts/build-native-helpers.mjs",
+    "dev:lp": "npm run dev -w @lensmap/landing-page",
+    "lp:check": "npm run check -w @lensmap/landing-page",
+    "lp:build": "npm run lp:assets && npm run build -w @lensmap/landing-page",
+    "lp:deploy:preview": "npm run lp:build && wrangler pages deploy apps/landing-page/dist --project-name=lensmap --branch=preview",
+    "lp:deploy:production": "npm run lp:check && npm run lp:acceptance && wrangler pages deploy apps/landing-page/dist --project-name=lensmap --branch=main",
+    "lp:assets": "node scripts/build-lp-assets.mjs",
+    "lp:acceptance": "npm run lp:build && node e2e/landing-page.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -42,10 +49,14 @@
     "puppeteer": "^25.5.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.66.0",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "wrangler": "^4.123.0"
   },
   "engines": {
     "node": ">=22.13.0"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "overrides": {
+    "sharp": "0.35.3"
+  }
 }

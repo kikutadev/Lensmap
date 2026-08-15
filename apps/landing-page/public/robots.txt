@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://lensmap.kikuta.dev/sitemap-index.xml

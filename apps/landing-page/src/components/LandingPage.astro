@@ -1,0 +1,169 @@
+---
+import type { Locale, SiteCopy } from "../content/site";
+
+interface Props {
+  locale: Locale;
+  copy: SiteCopy;
+}
+
+const { locale, copy } = Astro.props;
+const isJa = locale === "ja";
+const languageHref = isJa ? "/en/" : "/";
+const languageLabel = isJa ? "EN" : "日本語";
+---
+<div class="site-shell">
+  <header class="site-header" aria-label="Lensmap">
+    <a class="brand" href={isJa ? "/" : "/en/"} aria-label="Lensmap home">
+      <img src="/icons/icon-256.png" alt="" width="30" height="30" />
+      <span>Lensmap</span>
+    </a>
+    <nav class="site-nav" aria-label={isJa ? "主要ナビゲーション" : "Primary navigation"}>
+      <a href="#how">{copy.navHow}</a>
+      <a href="#maps">{copy.navMaps}</a>
+      <a href="https://github.com/kikutadev/Lensmap/blob/main/PRIVACY.md">{copy.navPrivacy}</a>
+      <a class="language-link" href={languageHref} hreflang={isJa ? "en" : "ja"}>{languageLabel}</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero section-pad" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">{copy.eyebrow}</p>
+        <h1 id="hero-title">{copy.heroTitle.split("\n").map((line, index) => <>{index > 0 && <br />}<span>{line}</span></>)}</h1>
+        <p class="hero-body">{copy.heroBody}</p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/kikutadev/Lensmap">{copy.primaryCta}</a>
+          <a class="button secondary" href="#how">{copy.secondaryCta}</a>
+        </div>
+        <p class="hero-hint">{copy.heroHint}</p>
+      </div>
+
+      <div class="hero-product" aria-label={isJa ? "PDF本文とLensmapのExplore画面" : "PDF passage alongside Lensmap Explore"}>
+        <div class="browser-frame">
+          <div class="browser-toolbar" aria-hidden="true">
+            <span class="traffic"><i></i><i></i><i></i></span>
+            <span class="browser-title">Distributed Systems Notes.pdf</span>
+          </div>
+          <div class="reader-stage">
+            <article class="pdf-page" aria-label={isJa ? "PDFの例" : "Example PDF passage"}>
+              <div class="pdf-kicker">Chapter 4 · Consistency</div>
+              <h2>Cache invalidation and coordination</h2>
+              <p>Remote cache invalidation is delegated to <strong>BlueGate</strong>, which is defined later in this book.</p>
+              <p class="selected-passage">A consistency coordinator determines when invalidation is safe to publish across remote replicas.</p>
+              <p>The mechanism depends on the ordering guarantees discussed in the following section.</p>
+              <div class="margin-note">p. 42</div>
+            </article>
+            <div class="panel-shot">
+              <img src="/product/explore-response.png" alt={isJa ? "実際のLensmap Explore画面。選択箇所に加えてAIが追加参照した根拠と回答を表示している。" : "Actual Lensmap Explore UI showing a selected passage, AI-added evidence, and a grounded answer."} width="505" height="905" loading="eager" decoding="async" />
+            </div>
+          </div>
+        </div>
+        <div class="hero-callouts" aria-hidden="true">
+          <span class="callout selected">{copy.sourceLabel}</span>
+          <span class="callout expanded">{copy.aiAddedLabel}</span>
+          <span class="callout saved">{copy.mapSavedLabel}</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" class="core-loop section-pad" aria-labelledby="how-title">
+      <div class="section-heading compact">
+        <p class="eyebrow">Focus → Expand → Map</p>
+        <h2 id="how-title">{isJa ? "読書の主導権は、そのまま。" : "Keep reading in the driver’s seat."}</h2>
+      </div>
+      <ol class="loop-grid">
+        <li>
+          <span class="step-number">01</span>
+          <h3>{copy.focusTitle}</h3>
+          <p>{copy.focusBody}</p>
+        </li>
+        <li>
+          <span class="step-number">02</span>
+          <h3>{copy.expandTitle}</h3>
+          <p>{copy.expandBody}</p>
+        </li>
+        <li>
+          <span class="step-number">03</span>
+          <h3>{copy.mapTitle}</h3>
+          <p>{copy.mapBody}</p>
+        </li>
+      </ol>
+    </section>
+
+    <section id="maps" class="map-showcase section-pad" aria-labelledby="maps-title">
+      <div class="section-heading wide">
+        <p class="eyebrow">{copy.mapsEyebrow}</p>
+        <h2 id="maps-title">{copy.mapsTitle}</h2>
+        <p>{copy.mapsBody}</p>
+      </div>
+      <div class="map-gallery">
+        <figure class="map-window list-window">
+          <img src="/product/map-list.png" alt={isJa ? "LensmapのMaps一覧の実画面" : "Actual Lensmap Maps library"} width="409" height="905" loading="lazy" decoding="async" />
+          <figcaption>{isJa ? "Maps library — 理解を会話ログではなく成果物として一覧する。" : "Maps library — outcomes instead of a pile of chat logs."}</figcaption>
+        </figure>
+        <figure class="map-window detail-window">
+          <img src="/product/map-detail.png" alt={isJa ? "LensmapのMap詳細の実画面。説明とEvidenceが一体になっている。" : "Actual Lensmap Map detail combining explanation and evidence."} width="409" height="905" loading="lazy" decoding="async" />
+          <figcaption>{isJa ? "Map detail — Visual、説明、Evidenceを同じ文脈で残す。" : "Map detail — visual understanding, explanation, and evidence together."}</figcaption>
+        </figure>
+        <article class="artifact-preview" aria-label={isJa ? "Mapの構成例" : "Example Map composition"}>
+          <div class="artifact-topline"><span>Map</span><span>2 refs</span></div>
+          <h3>BlueGate</h3>
+          <p class="artifact-lead">{isJa ? "リモートキャッシュ無効化のための整合性コーディネータ" : "Consistency coordinator for remote cache invalidation"}</p>
+          <div class="diagram" aria-hidden="true">
+            <div class="node">Request</div>
+            <span>→</span>
+            <div class="node accent-node">BlueGate</div>
+            <span>→</span>
+            <div class="node">Invalidate</div>
+          </div>
+          <ul>
+            <li>{isJa ? "対象はリモートキャッシュの無効化" : "Coordinates remote cache invalidation"}</li>
+            <li>{isJa ? "無効化処理の委譲先" : "Receives delegated invalidation work"}</li>
+            <li>{isJa ? "具体的な調整方法は後続本文へ戻って確認" : "Exact coordination method remains traceable to the source"}</li>
+          </ul>
+          <div class="evidence-row"><span>S1 · PDF p.1</span><span>S2 · PDF p.3</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="principles section-pad" aria-label={isJa ? "Lensmapの原則" : "Lensmap principles"}>
+      <article>
+        <div class="principle-icon" aria-hidden="true">↩</div>
+        <h2>{copy.groundedTitle}</h2>
+        <p>{copy.groundedBody}</p>
+      </article>
+      <article>
+        <div class="principle-icon" aria-hidden="true">⌂</div>
+        <h2>{copy.localTitle}</h2>
+        <p>{copy.localBody}</p>
+      </article>
+    </section>
+
+    <section class="install section-pad" aria-labelledby="install-title">
+      <div>
+        <p class="eyebrow">{copy.installEyebrow}</p>
+        <h2 id="install-title">{copy.installTitle}</h2>
+        <p>{copy.installBody}</p>
+        <p class="install-note">{copy.installNote}</p>
+      </div>
+      <div class="install-actions">
+        <a class="button primary" href="https://github.com/kikutadev/Lensmap">{copy.primaryCta}</a>
+        <a class="text-link" href="https://github.com/kikutadev/Lensmap#readme">README ↗</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer section-pad">
+    <div class="footer-brand">
+      <img src="/icons/icon-256.png" alt="" width="24" height="24" />
+      <span>Lensmap</span>
+    </div>
+    <p>{copy.footerLine}</p>
+    <div class="footer-links">
+      <a href="https://github.com/kikutadev/Lensmap">GitHub</a>
+      <a href="https://github.com/kikutadev/Lensmap/blob/main/PRIVACY.md">Privacy</a>
+      <a href="https://github.com/kikutadev/Lensmap/blob/main/SECURITY.md">Security</a>
+      <a href="https://github.com/kikutadev/Lensmap/blob/main/LICENSE">Apache-2.0</a>
+    </div>
+  </footer>
+</div>
