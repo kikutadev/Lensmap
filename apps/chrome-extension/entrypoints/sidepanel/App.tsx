@@ -476,7 +476,36 @@ function MapCardVisual({ artifact }: { artifact: MapArtifactSummary }) {
     };
   }, [artifact.primaryVisualSource]);
   if (url) return <div className="map-thumbnail image"><img src={url} alt="" /></div>;
-  return <div className={`map-thumbnail ${artifact.primaryVisualKind ?? "text"}`} aria-hidden="true"><LibraryBig size={22} /><span>{artifact.primaryVisualKind ?? (artifact.sourceBooks.length > 1 ? `${artifact.sourceBooks.length} PDFs` : "Map")}</span></div>;
+
+  const content = artifact.primaryBlock ? mapRecord(artifact.primaryBlock.content) : null;
+  const visualization = content?.format === "visualization" ? mapRecord(content.visualization) : null;
+  if (visualization?.type === "definition") {
+    return <div className="map-thumbnail semantic definition"><strong>{typeof visualization.term === "string" ? visualization.term : "Definition"}</strong><span>{typeof visualization.definition === "string" ? visualization.definition : ""}</span></div>;
+  }
+  if (visualization?.type === "table") {
+    const columns = Array.isArray(visualization.columns) ? visualization.columns.filter((value): value is string => typeof value === "string") : [];
+    const rows = Array.isArray(visualization.rows) ? visualization.rows.slice(0, 2) : [];
+    return <div className="map-thumbnail semantic table-preview"><div>{columns.slice(0, 3).map((column) => <strong key={column}>{column}</strong>)}</div>{rows.map((row, index) => <div key={index}>{Array.isArray(row) ? row.slice(0, 3).map((cell, cellIndex) => <span key={cellIndex}>{typeof cell === "string" ? cell : ""}</span>) : null}</div>)}</div>;
+  }
+  if (visualization?.type === "flow") {
+    const nodes = Array.isArray(visualization.nodes) ? visualization.nodes.slice(0, 4) : [];
+    return <div className="map-thumbnail semantic flow-preview">{nodes.flatMap((node, index) => { const record = mapRecord(node); const label = typeof record?.label === "string" ? record.label : ""; return [<span key={`n-${index}`}>{label}</span>, ...(index < nodes.length - 1 ? [<i key={`a-${index}`}>→</i>] : [])]; })}</div>;
+  }
+  if (visualization?.type === "hierarchy") {
+    const nodes = Array.isArray(visualization.nodes) ? visualization.nodes.slice(0, 4) : [];
+    return <div className="map-thumbnail semantic hierarchy-preview">{nodes.map((node, index) => { const record = mapRecord(node); return <span key={index} style={{ marginLeft: `${Math.min(index, 2) * 6}px` }}>{typeof record?.label === "string" ? record.label : ""}</span>; })}</div>;
+  }
+  if (visualization?.type === "timeline") {
+    const items = Array.isArray(visualization.items) ? visualization.items.slice(0, 3) : [];
+    return <div className="map-thumbnail semantic timeline-preview">{items.map((item, index) => { const record = mapRecord(item); return <span key={index}>{typeof record?.time === "string" ? `${record.time} ` : ""}{typeof record?.label === "string" ? record.label : ""}</span>; })}</div>;
+  }
+  if (visualization?.type === "chart") return <div className="map-thumbnail semantic chart-preview"><span>▁▂▄▆▅▇</span><strong>{typeof visualization.title === "string" ? visualization.title : "Chart"}</strong></div>;
+  if (typeof content?.markdown === "string") return <div className="map-thumbnail semantic narrative"><span>{content.markdown}</span></div>;
+  return <div className={`map-thumbnail ${artifact.semanticKind}`} aria-hidden="true"><LibraryBig size={20} /><span>{artifact.semanticKind}</span></div>;
+}
+
+function mapRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
 function CaptureStatus({ state }: { state: LensmapTabState }) {

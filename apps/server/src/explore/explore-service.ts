@@ -50,7 +50,7 @@ interface ActiveTurn {
 }
 
 const TURN_COMPLETION_TIMEOUT_MS = 10 * 60 * 1000;
-const WORKSPACE_CONTEXT_TOOLS_VERSION = 4;
+const WORKSPACE_CONTEXT_TOOLS_VERSION = 5;
 
 /** Coordinate Workspace sources, local provenance, bounded multi-PDF retrieval, and Codex streaming. */
 export class ExploreService {
@@ -230,7 +230,7 @@ export class ExploreService {
         conversationSummary: buildConversationMemory(completedMessages),
         model: successfulModel,
       });
-      try { this.mapService?.createFromMessage({ messageId: completed.id }); } catch {
+      try { this.mapService?.createFromMessage({ messageId: completed.id }, toolSession?.getMapDraft() ?? null); } catch {
         // Map persistence is intentionally isolated from a successful Explore response.
       }
       onEvent({ type: "completed", message: this.toMessage(completed) });

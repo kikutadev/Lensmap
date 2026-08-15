@@ -190,6 +190,8 @@ try {
   assert.equal(mapsAfterExplore.artifacts.length, 1, "Completed Explore answer was not auto-saved as exactly one Map");
   const firstMapId = mapsAfterExplore.artifacts[0].id;
   assert(mapsAfterExplore.artifacts[0].sourceBooks.some((book) => book.bookId === bookId));
+  assert.equal(mapsAfterExplore.artifacts[0].semanticKind, "definition", "Definition question was not saved as a definition Map");
+  assert.equal(mapsAfterExplore.artifacts[0].primaryBlock?.kind, "definition", "Definition Map did not expose its structured definition as primary content");
 
   // Re-reading/creating the same Map from the same completed message remains idempotent.
   const duplicateMap = await apiJson("/maps/from-message", {
@@ -248,7 +250,7 @@ try {
   assert.equal(visualAsset.headers.get("content-type"), "image/png");
   assert((await visualAsset.arrayBuffer()).byteLength > 100, "Visual Source PNG was empty");
 
-  // Maps UI is visual-first and supports immutable version editing.
+  // Maps UI is semantic-primary and supports immutable version editing without raw JSON.
   await sidePanel.bringToFront();
   await sidePanel.evaluate(() => {
     const button = [...document.querySelectorAll(".view-tabs button")].find((candidate) => candidate.textContent?.trim() === "Maps");
@@ -256,9 +258,16 @@ try {
     button.click();
   });
   await sidePanel.waitForSelector(".map-list-item", { timeout: 30_000 });
+  await sidePanel.waitForSelector(".map-thumbnail.definition", { timeout: 30_000 });
+  await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "03-map-list.png"), fullPage: true });
   await sidePanel.click(".map-list-item");
   await sidePanel.waitForSelector(".map-detail", { timeout: 30_000 });
-  await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "03-map-detail.png"), fullPage: true });
+  await sidePanel.waitForSelector(".viz-definition", { timeout: 30_000 });
+  const renderedDefinition = await sidePanel.$eval(".viz-card", (element) => element.textContent ?? "");
+  assert(renderedDefinition.includes("BlueGate"), "Primary definition renderer did not show the structured term");
+  assert((await sidePanel.$eval(".viz-definition", (element) => element.textContent ?? "")).trim().length > 0, "Primary definition renderer did not show definition content");
+  assert.equal(await sidePanel.$(".rich-error"), null, "Structured definition fell back to an invalid visualization error");
+  await sidePanel.screenshot({ path: resolve(visualAcceptanceDir, "04-map-detail.png"), fullPage: true });
   await sidePanel.evaluate(() => {
     const button = [...document.querySelectorAll(".map-toolbar button")].find((candidate) => candidate.textContent?.includes("編集"));
     if (!(button instanceof HTMLButtonElement)) throw new Error("Map edit button not found");

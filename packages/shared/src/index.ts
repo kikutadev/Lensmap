@@ -3,6 +3,7 @@ export * from "./schemas/workspace.js";
 export * from "./schemas/source-anchor.js";
 export * from "./schemas/document.js";
 export * from "./schemas/map.js";
+export * from "./schemas/map-draft.js";
 export * from "./schemas/api.js";
 export * from "./schemas/explore.js";
 export * from "./text/normalize.js";

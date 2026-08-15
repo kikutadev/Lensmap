@@ -1,5 +1,8 @@
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createInterface, type Interface as ReadLineInterface } from "node:readline";
 import {
   configReadResponseSchema,
@@ -84,6 +87,7 @@ Do not use shell commands, filesystem access, web search, MCP servers, apps, con
 You may use only the client-provided workspace_* read-only tools to retrieve additional context from PDFs in the active Reader Workspace. For explanatory, comparative, causal, or synthesis questions, proactively inspect nearby, section, or cross-document context when it materially improves grounding instead of assuming the selected excerpt is self-contained. Search results are candidates only; read them before citing them.
 When a claim is supported by supplied source labels, cite those labels exactly, for example [S1] or [S1][S3].
 Never invent a source label. Clearly identify useful general-knowledge supplementation as book-external explanation.
+Before finalizing each successful Explore answer, use the lensmap-map-composer skill and call the client-provided lensmap_compose_map tool exactly once. The tool submits structured Map data only; never print its JSON in the user-facing answer.
 Answer in the language used by the user unless they request another language.`;
 
 /**
@@ -299,12 +303,23 @@ export class CodexAppServerClient extends EventEmitter {
     );
     this.configuredMcpServerNames = extractConfiguredMcpServerNames(configRead.config);
     this.modelContextWindowTokens = readPositiveInteger(configRead.config.model_context_window);
+    await this.registerBuiltInSkills();
 
     const versionResult = spawnSync(binaryPath, ["--version"], { encoding: "utf8" });
     const version = versionResult.status === 0 ? versionResult.stdout.trim() || null : null;
     const runtimeInfo = { binaryPath, version, initialize };
     this.runtimeInfo = runtimeInfo;
     return runtimeInfo;
+  }
+
+  private async registerBuiltInSkills(): Promise<void> {
+    const skillRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../skills");
+    if (!existsSync(skillRoot)) throw new Error(`Lensmap built-in Skill directory was not found: ${skillRoot}`);
+    await this.request("skills/extraRoots/set", { extraRoots: [skillRoot] });
+    const listed = await this.request("skills/list", { cwds: [process.cwd()], forceReload: true });
+    if (!containsSkill(listed, "lensmap-map-composer")) {
+      throw new Error("Lensmap Map Composer Skill was not discovered by Codex App Server");
+    }
   }
 
   private request(method: string, params: unknown): Promise<unknown> {
@@ -448,6 +463,11 @@ function toProtocolError(value: unknown): Error {
   const error = value as JsonRpcErrorBody;
   const suffix = typeof error.code === "number" ? ` (${error.code})` : "";
   return new Error(`${error.message ?? "Codex app-server request failed"}${suffix}`);
+}
+
+function containsSkill(value: unknown, name: string): boolean {
+  if (!isRecord(value) || !Array.isArray(value.data)) return false;
+  return value.data.some((entry) => isRecord(entry) && Array.isArray(entry.skills) && entry.skills.some((skill) => isRecord(skill) && skill.name === name && skill.enabled !== false));
 }
 
 function readPositiveInteger(value: unknown): number | null {

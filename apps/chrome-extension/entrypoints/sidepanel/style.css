@@ -757,3 +757,24 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
   .workspace-bar { grid-template-columns: minmax(0, 1fr) 28px; }
   .workspace-summary { display: none; }
 }
+
+
+/* Structured Map previews and primary-first detail */
+.map-thumbnail.semantic { align-items: stretch; justify-content: flex-start; gap: 4px; padding: 8px; color: var(--lm-label-secondary); font-size: 9px; line-height: 1.3; }
+.map-thumbnail.semantic strong { color: var(--lm-label); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-thumbnail.semantic span { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.map-thumbnail.definition { background: var(--lm-control); }
+.table-preview > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
+.table-preview > div > strong, .table-preview > div > span { padding: 2px 3px; border-radius: 3px; background: color-mix(in srgb, var(--lm-surface) 75%, transparent); font-size: 7px; -webkit-line-clamp: 1; }
+.flow-preview { align-items: center !important; justify-content: center !important; text-align: center; }
+.flow-preview i { color: var(--lm-accent); font-style: normal; }
+.hierarchy-preview span { -webkit-line-clamp: 1 !important; }
+.timeline-preview span { padding-left: 6px; border-left: 2px solid var(--lm-accent-soft); -webkit-line-clamp: 1 !important; }
+.chart-preview { align-items: center !important; justify-content: center !important; color: var(--lm-accent) !important; }
+.chart-preview > span { font-size: 19px; letter-spacing: 1px; }
+.map-content-header { display: grid; gap: 4px; }
+.map-block.primary { padding-top: 2px; }
+.map-history-section { display: grid; gap: 8px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--lm-separator-soft); }
+.viz-definition { display: grid; gap: 7px; }
+.viz-definition p { margin: 0; color: var(--lm-label); font-size: 13px; line-height: 1.55; }
+.viz-definition ul { margin: 0; padding-left: 18px; color: var(--lm-label-secondary); font-size: 12px; line-height: 1.5; }

@@ -3,6 +3,24 @@ import { z } from "zod";
 const sourceRefsSchema = z.array(z.string().regex(/^S\d+$/));
 const dataNatureSchema = z.enum(["source", "derived", "illustrative"]);
 
+
+export const definitionVisualizationSchema = z.object({
+  type: z.literal("definition"),
+  title: z.string().min(1).optional(),
+  term: z.string().min(1).max(200),
+  definition: z.string().min(1).max(6_000),
+  keyPoints: z.array(z.string().max(1_000)).max(12).default([]),
+  sourceRefs: sourceRefsSchema,
+});
+
+export const tableVisualizationSchema = z.object({
+  type: z.literal("table"),
+  title: z.string().min(1),
+  columns: z.array(z.string().min(1).max(200)).min(1).max(12),
+  rows: z.array(z.array(z.string().max(2_000)).min(1).max(12)).max(120),
+  sourceRefs: sourceRefsSchema,
+});
+
 const chartSeriesSchema = z.object({
   dataKey: z.string().min(1),
   label: z.string().min(1),
@@ -94,6 +112,8 @@ export const calloutVisualizationSchema = z.object({
 });
 
 export const visualizationSchema = z.discriminatedUnion("type", [
+  definitionVisualizationSchema,
+  tableVisualizationSchema,
   chartVisualizationSchema,
   comparisonVisualizationSchema,
   flowVisualizationSchema,

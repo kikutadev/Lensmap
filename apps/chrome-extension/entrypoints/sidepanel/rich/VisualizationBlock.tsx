@@ -23,10 +23,11 @@ export function VisualizationBlock({ json, sources, onOpenSource }: Props) {
   const sourceByLabel = new Map(sources.map((source) => [source.label, source]));
   const invalidRefs = parsed.data.sourceRefs.filter((label) => !sourceByLabel.has(label));
 
+  const heading = parsed.data.type === "definition" ? parsed.data.title ?? parsed.data.term : parsed.data.title;
   return (
     <section className="viz-card">
       <div className="viz-heading">
-        <strong>{parsed.data.title}</strong>
+        <strong>{heading}</strong>
         {parsed.data.type === "chart" ? <DataNatureBadge nature={parsed.data.dataNature} /> : null}
       </div>
       <VisualizationBody visualization={parsed.data} />
@@ -45,6 +46,8 @@ export function VisualizationBlock({ json, sources, onOpenSource }: Props) {
 
 function VisualizationBody({ visualization }: { visualization: Visualization }) {
   switch (visualization.type) {
+    case "definition": return <div className="viz-definition"><p>{visualization.definition}</p>{visualization.keyPoints.length ? <ul>{visualization.keyPoints.map((point, index) => <li key={`${index}-${point}`}>{point}</li>)}</ul> : null}</div>;
+    case "table": return <div className="table-scroll"><table className="rich-table"><thead><tr>{visualization.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{visualization.rows.map((row, rowIndex) => <tr key={rowIndex}>{visualization.columns.map((column, columnIndex) => <td key={`${columnIndex}-${column}`}>{row[columnIndex] ?? ""}</td>)}</tr>)}</tbody></table></div>;
     case "comparison": return <div className="viz-comparison">{visualization.columns.map((column) => <article key={column.title}><strong>{column.title}</strong><ul>{column.items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></article>)}</div>;
     case "flow": return <Flow visualization={visualization} />;
     case "hierarchy": return <div className="viz-hierarchy">{visualization.nodes.map((node) => <div key={node.id} style={{ marginLeft: `${hierarchyDepth(node.id, visualization.nodes) * 12}px` }}><strong>{node.label}</strong>{node.detail ? <span>{node.detail}</span> : null}</div>)}</div>;
@@ -57,9 +60,10 @@ function VisualizationBody({ visualization }: { visualization: Visualization }) 
 
 function Flow({ visualization }: { visualization: Extract<Visualization, { type: "flow" }> }) {
   const ids = new Set(visualization.nodes.map((node) => node.id));
-  const nodes: Node[] = visualization.nodes.map((node, index) => ({
+  const positions = layoutFlow(visualization.nodes.map((node) => node.id), visualization.edges, visualization.direction);
+  const nodes: Node[] = visualization.nodes.map((node) => ({
     id: node.id,
-    position: visualization.direction === "TB" ? { x: (index % 2) * 180, y: Math.floor(index / 2) * 105 } : { x: Math.floor(index / 2) * 190, y: (index % 2) * 90 },
+    position: positions.get(node.id) ?? { x: 0, y: 0 },
     data: { label: node.detail ? `${node.label}\n${node.detail}` : node.label },
     style: { width: 150, whiteSpace: "pre-wrap", fontSize: 10 },
   }));
@@ -67,6 +71,48 @@ function Flow({ visualization }: { visualization: Extract<Visualization, { type:
     ? [{ id: `${index}-${edge.source}-${edge.target}`, source: edge.source, target: edge.target, label: edge.label }]
     : []);
   return <div className="viz-flow"><ReactFlow nodes={nodes} edges={edges} fitView nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} /></div>;
+}
+
+/** Assign DAG-like flows to topology levels; cycles/unconnected nodes degrade deterministically. */
+function layoutFlow(nodeIds: string[], edges: Array<{ source: string; target: string }>, direction: "LR" | "TB"): Map<string, { x: number; y: number }> {
+  const ids = new Set(nodeIds);
+  const indegree = new Map(nodeIds.map((id) => [id, 0]));
+  const outgoing = new Map(nodeIds.map((id) => [id, [] as string[]]));
+  for (const edge of edges) {
+    if (!ids.has(edge.source) || !ids.has(edge.target)) continue;
+    outgoing.get(edge.source)?.push(edge.target);
+    indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
+  }
+  const level = new Map<string, number>();
+  const queue = nodeIds.filter((id) => (indegree.get(id) ?? 0) === 0);
+  for (const id of queue) level.set(id, 0);
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index]!;
+    const currentLevel = level.get(current) ?? 0;
+    for (const target of outgoing.get(current) ?? []) {
+      level.set(target, Math.max(level.get(target) ?? 0, currentLevel + 1));
+      const next = (indegree.get(target) ?? 1) - 1;
+      indegree.set(target, next);
+      if (next === 0) queue.push(target);
+    }
+  }
+  let fallbackLevel = Math.max(0, ...level.values());
+  for (const id of nodeIds) if (!level.has(id)) level.set(id, ++fallbackLevel);
+  const byLevel = new Map<number, string[]>();
+  for (const id of nodeIds) {
+    const bucket = level.get(id) ?? 0;
+    byLevel.set(bucket, [...(byLevel.get(bucket) ?? []), id]);
+  }
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const [bucket, members] of byLevel) {
+    members.forEach((id, index) => {
+      const lane = index - (members.length - 1) / 2;
+      positions.set(id, direction === "TB"
+        ? { x: lane * 180, y: bucket * 115 }
+        : { x: bucket * 190, y: lane * 100 });
+    });
+  }
+  return positions;
 }
 
 function Matrix({ visualization }: { visualization: Extract<Visualization, { type: "matrix" }> }) {

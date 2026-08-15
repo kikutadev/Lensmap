@@ -21,11 +21,13 @@ interface Props {
   onOpenSource: (bookId: string, page: number) => void;
 }
 
+/** Render the current understanding first; version/debug metadata stays subordinate to the Map content. */
 export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
   const queryClient = useQueryClient();
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState("");
+  const [conciseExplanation, setConciseExplanation] = useState("");
   const [tags, setTags] = useState("");
   const [blockDrafts, setBlockDrafts] = useState<Record<string, string>>({});
   const [editError, setEditError] = useState<string | null>(null);
@@ -60,14 +62,16 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
   const save = useMutation({
     mutationFn: async () => {
       if (!latest.data) throw new Error("Mapを読み込めませんでした");
-      const blocks = latest.data.artifact.blocks.map((block) => ({
-        id: block.id,
-        content: parseEditedContent(block.content, blockDrafts[block.id] ?? serializeContent(block.content)),
-      }));
+      const editableBlocks = latest.data.artifact.blocks.flatMap((block) => {
+        const draft = blockDrafts[block.id];
+        if (draft === undefined) return [];
+        return [{ id: block.id, content: applySemanticEdit(block, draft) }];
+      });
       return updateMap(mapArtifactId, {
         title: title.trim() || latest.data.artifact.title,
+        conciseExplanation: conciseExplanation.trim(),
         tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-        blocks,
+        ...(editableBlocks.length ? { blocks: editableBlocks } : {}),
       });
     },
     onSuccess: async (result) => {
@@ -86,8 +90,12 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
   const startEdit = () => {
     if (!latest.data) return;
     setTitle(latest.data.artifact.title);
+    setConciseExplanation(latest.data.artifact.conciseExplanation);
     setTags(latest.data.artifact.tags.join(", "));
-    setBlockDrafts(Object.fromEntries(latest.data.artifact.blocks.map((block) => [block.id, serializeContent(block.content)])));
+    setBlockDrafts(Object.fromEntries(latest.data.artifact.blocks.flatMap((block) => {
+      const editable = semanticEditableText(block);
+      return editable === null ? [] : [[block.id, editable]];
+    })));
     setEditError(null);
     setEditing(true);
     setSelectedVersion(latest.data.artifact.version);
@@ -96,7 +104,8 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
   if (latest.isLoading) return <LoaderBlock label="Mapを読み込み中…" />;
   if (!detail) return <div className="capture-status error">Mapを読み込めませんでした。</div>;
   const isLatest = detail.artifact.version === latest.data?.artifact.version;
-  const hasPrimaryVisual = detail.artifact.blocks.some((block) => ["table", "diagram", "chart", "visual-reference"].includes(block.kind));
+  const primary = detail.artifact.blocks.find((block) => block.id === detail.artifact.primaryBlockId) ?? detail.artifact.blocks[0] ?? null;
+  const supporting = detail.artifact.blocks.filter((block) => block.id !== primary?.id);
 
   return (
     <div className="map-detail">
@@ -108,12 +117,12 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
       {editing ? (
         <section className="map-editor">
           <label>タイトル<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label>要点<textarea value={conciseExplanation} onChange={(event) => setConciseExplanation(event.target.value)} /></label>
+          {latest.data!.artifact.blocks.flatMap((block) => {
+            if (!(block.id in blockDrafts)) return [];
+            return [<label key={block.id}>{editableBlockLabel(block)}<textarea value={blockDrafts[block.id] ?? ""} onChange={(event) => setBlockDrafts((current) => ({ ...current, [block.id]: event.target.value }))} /></label>];
+          })}
           <label>Tags<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="architecture, cache" /></label>
-          {latest.data!.artifact.blocks.map((block) => (
-            <label key={block.id}>{block.kind}
-              <textarea value={blockDrafts[block.id] ?? ""} onChange={(event) => setBlockDrafts((current) => ({ ...current, [block.id]: event.target.value }))} />
-            </label>
-          ))}
           {editError ? <div className="capture-status error">{editError}</div> : null}
           <div className="editor-actions">
             <button className="secondary-button" onClick={() => setEditing(false)}><X size={13} />キャンセル</button>
@@ -122,66 +131,52 @@ export function MapDetail({ mapArtifactId, onBack, onOpenSource }: Props) {
         </section>
       ) : (
         <>
-          <h1>{detail.artifact.title}</h1>
-          <div className="map-meta">v{detail.artifact.version} · {detail.artifact.sourceAnchorIds.length} refs</div>
-          {detail.artifact.conciseExplanation && hasPrimaryVisual ? <p className="map-concise-explanation">{detail.artifact.conciseExplanation}</p> : null}
+          <header className="map-content-header">
+            <h1>{detail.artifact.title}</h1>
+            <div className="map-meta">{semanticKindLabel(detail.artifact.semanticKind)} · v{detail.artifact.version} · {detail.artifact.sourceAnchorIds.length} refs</div>
+          </header>
+
+          {primary ? <MapBlockView block={primary} detail={detail} onOpenSource={onOpenSource} primary /> : null}
+          {detail.artifact.conciseExplanation ? <p className="map-concise-explanation">{detail.artifact.conciseExplanation}</p> : null}
+          {supporting.map((block) => <MapBlockView key={block.id} block={block} detail={detail} onOpenSource={onOpenSource} />)}
           {detail.artifact.tags.length ? <div className="tag-row">{detail.artifact.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
 
-          <div className="version-row" aria-label="Map versions">
-            <History size={13} />
-            {versions.data?.versions.map((version) => (
-              <button className={version.version === detail.artifact.version ? "active" : ""} key={version.id} onClick={() => { setEditing(false); setSelectedVersion(version.version); }}>v{version.version}</button>
-            ))}
-          </div>
-
-          {diff.data ? (
-            <details className="diff-panel">
-              <summary><GitCompareArrows size={13} />v{diff.data.fromVersion} → v{diff.data.toVersion} の変更</summary>
-              {diff.data.changes.filter((change) => change.change !== "unchanged").map((change) => <div key={`${change.order}-${change.kind}`}><strong>{change.kind} · {change.change}</strong><pre>{change.afterContent === undefined ? "(removed)" : serializeContent(change.afterContent)}</pre></div>)}
-            </details>
-          ) : null}
-
-          {detail.artifact.blocks.map((block) => <MapBlockView key={block.id} block={block} detail={detail} onOpenSource={onOpenSource} />)}
+          <section className="map-history-section" aria-label="Map history">
+            <div className="version-row">
+              <History size={13} />
+              {versions.data?.versions.map((version) => (
+                <button className={version.version === detail.artifact.version ? "active" : ""} key={version.id} onClick={() => { setEditing(false); setSelectedVersion(version.version); }}>v{version.version}</button>
+              ))}
+            </div>
+            {diff.data ? (
+              <details className="diff-panel">
+                <summary><GitCompareArrows size={13} />v{diff.data.fromVersion} → v{diff.data.toVersion} の変更</summary>
+                {diff.data.changes.filter((change) => change.change !== "unchanged").map((change) => <div key={`${change.order}-${change.kind}`}><strong>{change.kind} · {change.change}</strong><pre>{change.afterContent === undefined ? "(removed)" : serializeContent(change.afterContent)}</pre></div>)}
+              </details>
+            ) : null}
+          </section>
         </>
       )}
     </div>
   );
 }
 
-function MapBlockView({ block, detail, onOpenSource }: { block: MapBlock; detail: MapArtifactDetail; onOpenSource: (bookId: string, page: number) => void }) {
+function MapBlockView({ block, detail, onOpenSource, primary = false }: { block: MapBlock; detail: MapArtifactDetail; onOpenSource: (bookId: string, page: number) => void; primary?: boolean }) {
   const exploreSources = useMemo(() => block.sourceRefs.flatMap((ref): ExploreMessageSource[] => {
     const source = detail.sources.find((candidate) => candidate.sourceAnchorId === ref.sourceAnchorId);
     if (!source) return [];
     if (source.kind === "visual") {
       return [{
-        kind: "visual",
-        label: ref.label,
-        sourceAnchorId: source.sourceAnchorId,
-        bookId: source.bookId,
-        bookTitle: source.bookTitle,
-        imageAssetId: source.imageAssetId,
-        locationStatus: source.locationStatus,
-        page: source.page,
-        recognizedText: source.recognizedText,
-        includedText: source.recognizedText ?? "",
-        truncated: false,
-        origin: source.origin,
+        kind: "visual", label: ref.label, sourceAnchorId: source.sourceAnchorId, bookId: source.bookId, bookTitle: source.bookTitle,
+        imageAssetId: source.imageAssetId, locationStatus: source.locationStatus, page: source.page, recognizedText: source.recognizedText,
+        includedText: source.recognizedText ?? "", truncated: false, origin: source.origin,
       }];
     }
     return [{
-      kind: "text",
-      label: ref.label,
-      sourceAnchorId: source.sourceAnchorId,
-      bookId: source.bookId,
-      bookTitle: source.bookTitle,
-      pageStart: source.pageStart,
-      pageEnd: source.pageEnd,
-      printedPageLabelStart: source.printedPageLabelStart,
-      printedPageLabelEnd: source.printedPageLabelEnd,
-      quoteRaw: source.quoteRaw,
-      includedText: source.quoteRaw,
-      truncated: false,
-      origin: source.origin,
+      kind: "text", label: ref.label, sourceAnchorId: source.sourceAnchorId, bookId: source.bookId, bookTitle: source.bookTitle,
+      pageStart: source.pageStart, pageEnd: source.pageEnd, printedPageLabelStart: source.printedPageLabelStart,
+      printedPageLabelEnd: source.printedPageLabelEnd, quoteRaw: source.quoteRaw, includedText: source.quoteRaw,
+      truncated: false, origin: source.origin,
     }];
   }), [block.sourceRefs, detail.sources]);
 
@@ -189,16 +184,13 @@ function MapBlockView({ block, detail, onOpenSource }: { block: MapBlock; detail
     if (source.kind === "text") onOpenSource(source.bookId, source.pageStart + 1);
     else if (source.page !== null) onOpenSource(source.bookId, source.page + 1);
   };
+  const contentOwnsCitations = blockUsesVisualizationRenderer(block);
   return (
-    <article className={`map-block ${block.kind}`}>
+    <article className={`map-block ${block.kind}${primary ? " primary" : ""}`}>
       {block.groundingKind === "ai-explanation" ? <div className="map-provenance-note">書籍本文の直接引用を伴わないAI補足</div> : null}
       {block.groundingStatus === "modified" ? <div className="map-provenance-note modified">編集済み · 引用は元回答時点の根拠です</div> : null}
       <MapBlockContent block={block} sources={exploreSources} onOpenSource={open} />
-      {exploreSources.length > 0 ? (
-        <div className="citation-row map-citations">
-          {exploreSources.map((source) => <SourceReference key={`${block.id}-${source.label}`} source={source} onOpen={open} variant="chip" />)}
-        </div>
-      ) : null}
+      {exploreSources.length > 0 && !contentOwnsCitations ? <div className="citation-row map-citations">{exploreSources.map((source) => <SourceReference key={`${block.id}-${source.label}`} source={source} onOpen={open} variant="chip" />)}</div> : null}
     </article>
   );
 }
@@ -212,7 +204,7 @@ function MapBlockContent({ block, sources, onOpenSource }: { block: MapBlock; so
   if (typeof content?.markdown === "string") return <RichMessage markdown={content.markdown} sources={sources} onOpenSource={onOpenSource} />;
   if (content?.format === "mermaid" && typeof content.source === "string") return <MermaidDiagram source={content.source} />;
   if (content?.format === "visualization" && content.visualization !== undefined) return <LazyVisualizationBlock json={JSON.stringify(content.visualization)} sources={sources} onOpenSource={onOpenSource} />;
-  return <pre className="rich-pre">{serializeContent(block.content)}</pre>;
+  return null;
 }
 
 function MapVisualReference({ bookId, imageAssetId, recognizedText }: { bookId: string; imageAssetId: string; recognizedText: string | null }) {
@@ -232,10 +224,44 @@ function MapVisualReference({ bookId, imageAssetId, recognizedText }: { bookId: 
   return <figure className="map-visual-reference">{url ? <img src={url} alt={recognizedText || "Visual Source"} /> : <div className="map-visual-placeholder">Visual Source</div>}{recognizedText ? <figcaption>{recognizedText}</figcaption> : null}</figure>;
 }
 
-function parseEditedContent(original: unknown, draft: string): unknown {
-  if (typeof original === "string") return draft;
-  try { return JSON.parse(draft); } catch { throw new Error("構造化blockは有効なJSONとして編集してください。"); }
+function semanticEditableText(block: MapBlock): string | null {
+  const content = asRecord(block.content);
+  if (typeof block.content === "string") return block.content;
+  if (typeof content?.markdown === "string") return content.markdown;
+  if (content?.format === "visualization") {
+    const visualization = asRecord(content.visualization);
+    if (visualization?.type === "definition" && typeof visualization.definition === "string") return visualization.definition;
+  }
+  return null;
 }
+
+function applySemanticEdit(block: MapBlock, draft: string): unknown {
+  const content = asRecord(block.content);
+  if (typeof block.content === "string") return draft;
+  if (typeof content?.markdown === "string") return { ...content, markdown: draft };
+  if (content?.format === "visualization") {
+    const visualization = asRecord(content.visualization);
+    if (visualization?.type === "definition") return { ...content, visualization: { ...visualization, definition: draft } };
+  }
+  return block.content;
+}
+
+function editableBlockLabel(block: MapBlock): string {
+  const content = asRecord(block.content);
+  const visualization = content?.format === "visualization" ? asRecord(content.visualization) : null;
+  return visualization?.type === "definition" ? "定義" : "本文";
+}
+
+function blockUsesVisualizationRenderer(block: MapBlock): boolean {
+  const content = asRecord(block.content);
+  return content?.format === "visualization" && content.visualization !== undefined;
+}
+
+function semanticKindLabel(kind: MapArtifactDetail["artifact"]["semanticKind"]): string {
+  const labels = { definition: "定義", comparison: "比較", causal: "因果", process: "処理", hierarchy: "階層", timeline: "時系列", quantitative: "定量", synthesis: "統合" } as const;
+  return labels[kind];
+}
+
 function serializeContent(value: unknown): string { return typeof value === "string" ? value : JSON.stringify(value, null, 2); }
 function asRecord(value: unknown): Record<string, unknown> | null { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
 function LoaderBlock({ label }: { label: string }) { return <div className="loader-block"><LoaderCircle className="spin" size={15} />{label}</div>; }

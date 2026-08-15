@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { SourceAnchor, TextSourceAnchor } from "@lensmap/shared";
+import { mapDraftSchema, type MapDraft, type SourceAnchor, type TextSourceAnchor } from "@lensmap/shared";
 import type { DynamicToolCallParams } from "../codex/protocol.js";
 import type { ReaderDynamicToolResult, ReaderDynamicToolSpec } from "../codex/app-server-client.js";
 import type { BookContextGateway, MaterializedBookSource } from "../documents/book-context-gateway.js";
@@ -76,6 +76,7 @@ export class WorkspaceToolSession {
   private nextSourceNumber: number;
   private toolCalls = 0;
   private retrievedCharacters = 0;
+  private mapDraft: MapDraft | null = null;
 
   public constructor(options: WorkspaceToolSessionOptions) {
     this.workspaceId = options.workspaceId;
@@ -99,8 +100,11 @@ export class WorkspaceToolSession {
 
   public getAuditEvents(): WorkspaceToolAuditEvent[] { return [...this.auditEvents]; }
 
+  public getMapDraft(): MapDraft | null { return this.mapDraft; }
+
   public async handle(request: DynamicToolCallParams): Promise<ReaderDynamicToolResult> {
     if (request.namespace !== null && request.namespace !== "") return failure(`Unsupported tool namespace: ${request.namespace}`);
+    if (request.tool === "lensmap_compose_map") return this.handleComposeMap(request.arguments);
     if (this.toolCalls >= this.limits.maxToolCalls) return failure("Workspace expansion budget exhausted: too many tool calls.");
     this.toolCalls += 1;
     try {
@@ -117,6 +121,26 @@ export class WorkspaceToolSession {
       this.recordAudit(request.tool, request.arguments, { success: false, error: message });
       return failure(message);
     }
+  }
+
+  private handleComposeMap(argumentsValue: unknown): ReaderDynamicToolResult {
+    if (this.mapDraft) return failure("Map Draft was already submitted for this turn.");
+    const draft = mapDraftSchema.parse(argumentsValue);
+    const labels = new Set([
+      ...draft.sourceRefs,
+      ...draft.primary.sourceRefs,
+      ...draft.supportingBlocks.flatMap((block) => block.sourceRefs),
+    ]);
+    const invalid = [...labels].filter((label) => !this.labelToSource.has(label));
+    if (invalid.length > 0) {
+      this.recordAudit("lensmap_compose_map", argumentsValue, { success: false, invalidSourceLabels: invalid });
+      return failure(`Map Draft contains unknown source labels: ${invalid.join(", ")}`);
+    }
+    this.mapDraft = draft;
+    this.recordAudit("lensmap_compose_map", { semanticKind: draft.semanticKind, title: draft.title }, {
+      success: true, primaryType: draft.primary.type, supportingBlockCount: draft.supportingBlocks.length,
+    });
+    return success("Map Draft accepted. Continue with the concise user-facing answer; do not print the draft JSON.");
   }
 
   private async handleSearch(argumentsValue: unknown): Promise<ReaderDynamicToolResult> {
@@ -272,6 +296,11 @@ function success(text: string): ReaderDynamicToolResult { return { success: true
 function failure(text: string): ReaderDynamicToolResult { return { success: false, contentItems: [{ type: "inputText", text }] }; }
 
 export const WORKSPACE_TOOL_SPECS: ReaderDynamicToolSpec[] = [
+  {
+    type: "function", name: "lensmap_compose_map",
+    description: "Submit exactly one structured Map Draft for this successful Explore turn. This does not write to the database. Prefer the smallest semantic structure that preserves the understanding; do not create decorative diagrams.",
+    inputSchema: z.toJSONSchema(mapDraftSchema, { target: "draft-07" }) as Record<string, unknown>,
+  },
   {
     type: "function", name: "workspace_expand_source",
     description: "Read nearby structured text around an existing S# source in its original PDF. Use this to verify local context before making causal, definitional, or comparative claims.",

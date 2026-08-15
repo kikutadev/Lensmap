@@ -46,10 +46,48 @@ function createSession(gateway = new FakeGateway()) {
 }
 
 describe("WorkspaceToolSession", () => {
-  it("exposes only workspace-scoped multi-PDF tools", () => {
+  it("exposes only Lensmap reader tools", () => {
     expect(WORKSPACE_TOOL_SPECS.map((tool) => tool.name)).toEqual([
-      "workspace_expand_source", "workspace_search", "workspace_read_blocks", "workspace_list_sections", "workspace_read_section",
+      "lensmap_compose_map", "workspace_expand_source", "workspace_search", "workspace_read_blocks", "workspace_list_sections", "workspace_read_section",
     ]);
+  });
+
+  it("accepts exactly one grounded Map Draft and rejects unknown source labels", async () => {
+    const { session } = createSession();
+    const invalid = await session.handle({
+      threadId: "thread", turnId: "turn", callId: "compose-invalid", tool: "lensmap_compose_map", namespace: null,
+      arguments: {
+        semanticKind: "definition",
+        title: "Invalid",
+        conciseExplanation: "",
+        primary: { type: "definition", term: "Invalid", definition: "Unsupported", keyPoints: [], sourceRefs: ["S99"] },
+        supportingBlocks: [],
+        sourceRefs: ["S99"],
+      },
+    });
+    expect(invalid.success).toBe(false);
+    expect(invalid.contentItems[0]?.text).toContain("S99");
+    expect(session.getMapDraft()).toBeNull();
+
+    const acceptedArguments = {
+      semanticKind: "definition",
+      title: "Consensus",
+      conciseExplanation: "A compact definition",
+      primary: { type: "definition", term: "Consensus", definition: "Agreement on one state", keyPoints: [], sourceRefs: ["S1"] },
+      supportingBlocks: [],
+      sourceRefs: ["S1"],
+    };
+    const accepted = await session.handle({
+      threadId: "thread", turnId: "turn", callId: "compose-1", tool: "lensmap_compose_map", namespace: null, arguments: acceptedArguments,
+    });
+    expect(accepted.success).toBe(true);
+    expect(session.getMapDraft()).toMatchObject({ semanticKind: "definition", title: "Consensus" });
+
+    const duplicate = await session.handle({
+      threadId: "thread", turnId: "turn", callId: "compose-2", tool: "lensmap_compose_map", namespace: null, arguments: acceptedArguments,
+    });
+    expect(duplicate.success).toBe(false);
+    expect(duplicate.contentItems[0]?.text).toContain("already submitted");
   });
 
   it("searches every Workspace PDF and keeps search hits non-citeable until read", async () => {

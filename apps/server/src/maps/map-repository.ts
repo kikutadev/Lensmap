@@ -1,4 +1,5 @@
 import { asc, desc, eq } from "drizzle-orm";
+import type { MapSemanticKind } from "@lensmap/shared";
 import type { AppDatabase } from "../persistence/database.js";
 import {
   books,
@@ -19,7 +20,7 @@ export type MapBlockRecord = typeof mapBlocks.$inferSelect;
 
 export interface NewMapBlock {
   id: string;
-  kind: "narrative" | "callout" | "table" | "diagram" | "chart" | "visual-reference";
+  kind: "definition" | "narrative" | "callout" | "table" | "diagram" | "chart" | "visual-reference";
   blockOrder: number;
   contentJson: string;
   groundingKind: "source-backed" | "derived" | "ai-explanation";
@@ -38,6 +39,8 @@ export interface CreateMapRecord {
   updatedAt: string;
   tags?: string[];
   versionId: string;
+  semanticKind: MapSemanticKind;
+  primaryBlockId: string | null;
   sourceAnchorIds: string[];
   originTurnIds: string[];
   blocks: NewMapBlock[];
@@ -52,6 +55,8 @@ export interface CreateMapVersionRecord {
   version: number;
   tags?: string[];
   preview?: string;
+  semanticKind: MapSemanticKind;
+  primaryBlockId: string | null;
   blocks: NewMapBlock[];
 }
 
@@ -77,6 +82,8 @@ export class MapRepository {
         version: 1,
         title: record.title,
         conciseExplanation: record.conciseExplanation,
+        semanticKind: record.semanticKind,
+        primaryBlockId: record.primaryBlockId,
         createdAt: record.createdAt,
       }).run();
       if (record.sourceAnchorIds.length > 0) {
@@ -113,6 +120,8 @@ export class MapRepository {
         version: record.version,
         title: record.title,
         conciseExplanation: record.conciseExplanation,
+        semanticKind: record.semanticKind,
+        primaryBlockId: record.primaryBlockId,
         createdAt: record.createdAt,
       }).run();
       this.insertBlocks(tx, record.versionId, record.blocks);

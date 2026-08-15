@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { sourceOriginSchema } from "./source-anchor.js";
+import { mapSemanticKindSchema } from "./map-draft.js";
 
 export const groundingKindSchema = z.enum(["source-backed", "derived", "ai-explanation"]);
 export const groundingStatusSchema = z.enum(["references-checked", "claim-verified", "modified", "needs-review"]);
 
 export const mapBlockKindSchema = z.enum([
+  "definition",
   "narrative",
   "callout",
   "table",
@@ -42,6 +44,8 @@ export const mapArtifactSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   version: z.number().int().positive(),
+  semanticKind: mapSemanticKindSchema,
+  primaryBlockId: z.string().min(1).nullable(),
   blocks: z.array(mapBlockSchema),
 });
 
@@ -82,6 +86,7 @@ export const mapArtifactSummarySchema = mapArtifactSchema.omit({ blocks: true, s
     pages: z.array(z.number().int().positive()),
   })),
   preview: z.string(),
+  primaryBlock: mapBlockSchema.nullable(),
   primaryVisualKind: z.enum(["diagram", "chart", "table", "visual-reference"]).nullable(),
   primaryVisualSource: z.object({
     bookId: z.string().min(1),
@@ -111,6 +116,8 @@ export const updateMapRequestSchema = z.object({
 export const mapVersionSummarySchema = z.object({
   id: z.string().min(1),
   version: z.number().int().positive(),
+  semanticKind: mapSemanticKindSchema,
+  primaryBlockId: z.string().min(1).nullable(),
   createdAt: z.string().datetime(),
 });
 export const mapVersionHistoryResponseSchema = z.object({ versions: z.array(mapVersionSummarySchema) });

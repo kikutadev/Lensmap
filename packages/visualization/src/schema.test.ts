@@ -81,3 +81,9 @@ describe("visualizationSchema", () => {
     }).success).toBe(false);
   });
 });
+
+
+it("accepts definition and table as first-class structured blocks", () => {
+  expect(visualizationSchema.parse({ type: "definition", term: "LSM tree", definition: "A write-optimized tree", keyPoints: ["compaction"], sourceRefs: ["S1"] }).type).toBe("definition");
+  expect(visualizationSchema.parse({ type: "table", title: "Comparison", columns: ["Aspect", "A", "B"], rows: [["Durability", "yes", "no"]], sourceRefs: ["S1", "S2"] }).type).toBe("table");
+});

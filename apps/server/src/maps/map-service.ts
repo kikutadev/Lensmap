@@ -2,15 +2,19 @@ import { randomUUID } from "node:crypto";
 import {
   mapArtifactDetailSchema,
   mapArtifactSchema,
+  mapDraftSchema,
   mapListResponseSchema,
   mapVersionDiffResponseSchema,
   mapVersionHistoryResponseSchema,
   type CreateMapFromMessageRequest,
   type MapArtifact,
   type MapArtifactDetail,
+  type MapDraft,
   type MapListResponse,
+  type MapSemanticKind,
   type MapVersionDiffResponse,
   type MapVersionHistoryResponse,
+  type StructuredMapBlock,
   type UpdateMapRequest,
 } from "@lensmap/shared";
 import type { ExploreRepository } from "../explore/explore-repository.js";
@@ -26,7 +30,8 @@ export class MapService {
     private readonly workspaceService: WorkspaceService,
   ) {}
 
-  public createFromMessage(input: CreateMapFromMessageRequest): MapArtifactDetail {
+  /** Prefer the validated same-turn structured draft; retain Markdown parsing as a resilience fallback. */
+  public createFromMessage(input: CreateMapFromMessageRequest, draftInput?: MapDraft | null): MapArtifactDetail {
     const message = this.exploreRepository.findMessageById(input.messageId);
     if (!message) throw new Error("Explore message not found");
     if (message.role !== "assistant") throw new Error("Only assistant messages can become Maps");
@@ -42,33 +47,22 @@ export class MapService {
     if (!thread) throw new Error("Origin Explore thread not found");
     this.workspaceService.get(thread.workspaceId);
     const messageSources = this.exploreRepository.listMessageSources(message.id);
-    const parsedBlocks = parseMarkdownMapBlocks(
-      message.content,
-      messageSources.map((source) => ({ label: source.sourceLabel, sourceAnchorId: source.sourceAnchorId })),
-    );
-    const visualBlocks = messageSources
-      .filter((source) => source.kind === "visual" && message.content.includes(`[${source.sourceLabel}]`))
-      .slice(0, 3)
-      .map((source) => ({
-        kind: "visual-reference" as const,
-        content: {
-          imageAssetId: source.imageAssetId,
-          bookId: source.bookId,
-          bookTitle: source.bookTitle,
-          page: source.visualPage,
-          recognizedText: source.recognizedText,
-        },
-        sourceAnchorIds: [source.sourceAnchorId],
-        sourceRefs: [{ label: source.sourceLabel, sourceAnchorId: source.sourceAnchorId }],
-        groundingKind: "source-backed" as const,
-        groundingStatus: "references-checked" as const,
-      }));
-    const mapBlocks = [...visualBlocks, ...parsedBlocks];
-    const sourceAnchorIds = [...new Set(mapBlocks.flatMap((block) => block.sourceAnchorIds))];
-    const conciseExplanation = deriveConciseExplanation(message.content);
-    const title = input.title?.trim() || deriveTitle(message.content);
+    const sourceByLabel = new Map(messageSources.map((source) => [source.sourceLabel, source.sourceAnchorId]));
+    const draft = draftInput ? validateDraftAgainstSources(draftInput, sourceByLabel) : null;
+
+    const built = draft
+      ? materializeDraft(draft, sourceByLabel)
+      : materializeMarkdownFallback(message.content, messageSources);
+    const title = input.title?.trim() || built.title;
+    const conciseExplanation = built.conciseExplanation || deriveConciseExplanation(message.content);
     const now = new Date().toISOString();
     const mapArtifactId = randomUUID();
+    const blocks = built.blocks.map((block, index): NewMapBlock => ({ ...block, id: randomUUID(), blockOrder: index }));
+    const primaryBlockId = blocks[built.primaryBlockIndex]?.id ?? blocks[0]?.id ?? null;
+    const sourceAnchorIds = [...new Set([
+      ...built.sourceAnchorIds,
+      ...blocks.flatMap((block) => block.sourceRefs.map((ref) => ref.sourceAnchorId)),
+    ])];
 
     this.repository.create({
       id: mapArtifactId,
@@ -81,17 +75,11 @@ export class MapService {
       updatedAt: now,
       tags: [],
       versionId: randomUUID(),
+      semanticKind: built.semanticKind,
+      primaryBlockId,
       sourceAnchorIds,
       originTurnIds: message.codexTurnId ? [message.codexTurnId] : [],
-      blocks: mapBlocks.map((block, index): NewMapBlock => ({
-        id: randomUUID(),
-        kind: block.kind,
-        blockOrder: index,
-        contentJson: JSON.stringify(block.content),
-        groundingKind: block.groundingKind,
-        groundingStatus: block.groundingStatus,
-        sourceRefs: block.sourceRefs,
-      })),
+      blocks,
     });
     return this.getDetail(mapArtifactId);
   }
@@ -108,6 +96,7 @@ export class MapService {
       if (!currentBlocks.some((block) => block.id === blockId)) throw new Error(`Map block not found in latest version: ${blockId}`);
     }
 
+    const primaryOrder = currentBlocks.find((block) => block.id === latest.primaryBlockId)?.blockOrder ?? currentBlocks[0]?.blockOrder ?? null;
     const blocks: NewMapBlock[] = currentBlocks.map((block) => {
       const sourceRefs = this.repository.listBlockSourceRefs(block.id);
       const currentContent = parseJson(block.contentJson);
@@ -125,6 +114,7 @@ export class MapService {
     });
     const createdAt = new Date().toISOString();
     const conciseExplanation = input.conciseExplanation?.trim() ?? latest.conciseExplanation;
+    const primaryBlockId = primaryOrder === null ? null : blocks.find((block) => block.blockOrder === primaryOrder)?.id ?? null;
     this.repository.createVersion({
       mapArtifactId,
       title: input.title?.trim() || record.title,
@@ -133,6 +123,8 @@ export class MapService {
       createdAt,
       versionId: randomUUID(),
       version: latest.version + 1,
+      semanticKind: latest.semanticKind,
+      primaryBlockId,
       ...(input.tags ? { tags: normalizeTags(input.tags) } : {}),
       blocks,
     });
@@ -142,7 +134,9 @@ export class MapService {
   public listVersions(mapArtifactId: string): MapVersionHistoryResponse {
     if (!this.repository.findById(mapArtifactId)) throw new Error("Map not found");
     return mapVersionHistoryResponseSchema.parse({
-      versions: this.repository.listVersions(mapArtifactId).map(({ id, version, createdAt }) => ({ id, version, createdAt })),
+      versions: this.repository.listVersions(mapArtifactId).map(({ id, version, semanticKind, primaryBlockId, createdAt }) => ({
+        id, version, semanticKind, primaryBlockId, createdAt,
+      })),
     });
   }
 
@@ -186,6 +180,7 @@ export class MapService {
         title,
         pages: [...new Set(provenance.filter((source) => source.bookId === bookId).flatMap(sourcePageNumber))].sort((a, b) => a - b),
       }));
+      const primaryBlock = artifact.blocks.find((block) => block.id === artifact.primaryBlockId) ?? artifact.blocks[0] ?? null;
       const primaryVisual = artifact.blocks.find((block) => ["diagram", "chart", "table", "visual-reference"].includes(block.kind));
       return {
         ...artifact,
@@ -193,11 +188,12 @@ export class MapService {
         sourcePages: [...new Set(provenance.flatMap(sourcePageNumber))].sort((a, b) => a - b),
         sourceBooks,
         preview: record.preview || artifact.conciseExplanation.slice(0, 220),
-        primaryVisualKind: primaryVisual && primaryVisual.kind !== "narrative" && primaryVisual.kind !== "callout" ? primaryVisual.kind : null,
-        primaryVisualSource: provenance.find((source) => source.kind === "visual" && source.imageAssetId)
+        primaryBlock,
+        primaryVisualKind: primaryVisual && primaryVisual.kind !== "definition" && primaryVisual.kind !== "narrative" && primaryVisual.kind !== "callout" ? primaryVisual.kind : null,
+        primaryVisualSource: primaryBlock?.kind === "visual-reference"
           ? (() => {
-            const visual = provenance.find((source) => source.kind === "visual" && source.imageAssetId)!;
-            return { bookId: visual.bookId, imageAssetId: visual.imageAssetId!, page: visual.visualPage, recognizedText: visual.recognizedText };
+            const visual = provenance.find((source) => source.kind === "visual" && source.imageAssetId);
+            return visual ? { bookId: visual.bookId, imageAssetId: visual.imageAssetId!, page: visual.visualPage, recognizedText: visual.recognizedText } : null;
           })()
           : null,
       };
@@ -239,9 +235,145 @@ export class MapService {
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       version: version.version,
+      semanticKind: version.semanticKind,
+      primaryBlockId: version.primaryBlockId,
       blocks,
     });
   }
+}
+
+type MaterializedBlock = Omit<NewMapBlock, "id" | "blockOrder">;
+
+interface MaterializedMap {
+  title: string;
+  conciseExplanation: string;
+  semanticKind: MapSemanticKind;
+  primaryBlockIndex: number;
+  sourceAnchorIds: string[];
+  blocks: MaterializedBlock[];
+}
+
+function validateDraftAgainstSources(draftInput: MapDraft, sourceByLabel: Map<string, string>): MapDraft {
+  const draft = mapDraftSchema.parse(draftInput);
+  const labels = new Set([
+    ...draft.sourceRefs,
+    ...draft.primary.sourceRefs,
+    ...draft.supportingBlocks.flatMap((block) => block.sourceRefs),
+  ]);
+  const invalid = [...labels].filter((label) => !sourceByLabel.has(label));
+  if (invalid.length) throw new Error(`Map Draft contains unknown source labels: ${invalid.join(", ")}`);
+  return draft;
+}
+
+function materializeDraft(draft: MapDraft, sourceByLabel: Map<string, string>): MaterializedMap {
+  const structured = [draft.primary, ...draft.supportingBlocks];
+  const blocks = structured.map((block) => materializeStructuredBlock(block, sourceByLabel));
+  const sourceAnchorIds = [...new Set(draft.sourceRefs.flatMap((label) => sourceByLabel.get(label) ?? []))];
+  return {
+    title: draft.title,
+    conciseExplanation: draft.conciseExplanation,
+    semanticKind: draft.semanticKind,
+    primaryBlockIndex: 0,
+    sourceAnchorIds,
+    blocks,
+  };
+}
+
+function materializeStructuredBlock(block: StructuredMapBlock, sourceByLabel: Map<string, string>): MaterializedBlock {
+  const sourceRefs = block.sourceRefs.flatMap((label) => {
+    const sourceAnchorId = sourceByLabel.get(label);
+    return sourceAnchorId ? [{ label, sourceAnchorId }] : [];
+  });
+  const groundingKind = sourceRefs.length > 0 ? "source-backed" as const : "ai-explanation" as const;
+  const groundingStatus = sourceRefs.length > 0 ? "references-checked" as const : "needs-review" as const;
+  if (block.type === "narrative") {
+    return { kind: "narrative", contentJson: JSON.stringify({ markdown: block.body, title: block.title }), groundingKind, groundingStatus, sourceRefs };
+  }
+  const kind = block.type === "definition" ? "definition" as const
+    : block.type === "table" ? "table" as const
+      : block.type === "chart" ? "chart" as const
+        : block.type === "callout" ? "callout" as const
+          : "diagram" as const;
+  return {
+    kind,
+    contentJson: JSON.stringify({ format: "visualization", visualization: block }),
+    groundingKind,
+    groundingStatus,
+    sourceRefs,
+  };
+}
+
+function materializeMarkdownFallback(messageContent: string, messageSources: ReturnType<ExploreRepository["listMessageSources"]>): MaterializedMap {
+  const parsedBlocks = parseMarkdownMapBlocks(
+    messageContent,
+    messageSources.map((source) => ({ label: source.sourceLabel, sourceAnchorId: source.sourceAnchorId })),
+  );
+  const visualBlocks = messageSources
+    .filter((source) => source.kind === "visual" && messageContent.includes(`[${source.sourceLabel}]`))
+    .slice(0, 3)
+    .map((source): MaterializedBlock => ({
+      kind: "visual-reference",
+      contentJson: JSON.stringify({
+        imageAssetId: source.imageAssetId,
+        bookId: source.bookId,
+        bookTitle: source.bookTitle,
+        page: source.visualPage,
+        recognizedText: source.recognizedText,
+      }),
+      sourceRefs: [{ label: source.sourceLabel, sourceAnchorId: source.sourceAnchorId }],
+      groundingKind: "source-backed",
+      groundingStatus: "references-checked",
+    }));
+  const parsed = parsedBlocks.map((block): MaterializedBlock => ({
+    kind: block.kind,
+    contentJson: JSON.stringify(block.content),
+    groundingKind: block.groundingKind,
+    groundingStatus: block.groundingStatus,
+    sourceRefs: block.sourceRefs,
+  }));
+  const blocks = [...visualBlocks, ...parsed];
+  const semanticKind = inferSemanticKind(blocks);
+  return {
+    title: deriveTitle(messageContent),
+    conciseExplanation: deriveConciseExplanation(messageContent),
+    semanticKind,
+    primaryBlockIndex: chooseFallbackPrimaryIndex(blocks, semanticKind),
+    sourceAnchorIds: [],
+    blocks,
+  };
+}
+
+function chooseFallbackPrimaryIndex(blocks: MaterializedBlock[], semanticKind: MapSemanticKind): number {
+  if (blocks.length === 0) return 0;
+  const preferredKinds = semanticKind === "comparison" ? ["table", "diagram"]
+    : semanticKind === "quantitative" ? ["chart", "table"]
+      : ["diagram", "table", "chart", "narrative", "visual-reference"];
+  for (const kind of preferredKinds) {
+    const index = blocks.findIndex((block) => block.kind === kind);
+    if (index >= 0) return index;
+  }
+  return 0;
+}
+
+function inferSemanticKind(blocks: MaterializedBlock[]): MapSemanticKind {
+  for (const block of blocks) {
+    const content = parseJson(block.contentJson);
+    if (content && typeof content === "object" && !Array.isArray(content)) {
+      const visualization = (content as Record<string, unknown>).visualization;
+      if (visualization && typeof visualization === "object" && !Array.isArray(visualization)) {
+        const type = (visualization as Record<string, unknown>).type;
+        if (type === "definition") return "definition";
+        if (type === "comparison" || type === "table" || type === "matrix") return "comparison";
+        if (type === "flow") return "process";
+        if (type === "hierarchy") return "hierarchy";
+        if (type === "timeline") return "timeline";
+        if (type === "chart") return "quantitative";
+      }
+    }
+    if (block.kind === "table") return "comparison";
+    if (block.kind === "chart") return "quantitative";
+  }
+  return "synthesis";
 }
 
 function toMapSource(source: ReturnType<MapRepository["listMapSources"]>[number]) {

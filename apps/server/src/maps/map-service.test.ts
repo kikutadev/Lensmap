@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import type { MapDraft } from "@lensmap/shared";
 import { BookRepository } from "../books/book-repository.js";
 import { ExploreRepository } from "../explore/explore-repository.js";
 import type { AppConfig } from "../config.js";
@@ -89,4 +90,53 @@ describe("MapService Maps", () => {
     expect(service.listVersions(created.artifact.id).versions.map((version) => version.version)).toEqual([2, 1]);
     expect(service.diffVersions(created.artifact.id, 1, 2).changes[0]?.change).toBe("modified");
   });
+
+  it("materializes semantic Map Draft fixtures with the requested primary structured block", () => {
+    database = createDatabase(createTestConfig());
+    const bookRepository = new BookRepository(database.db);
+    const exploreRepository = new ExploreRepository(database.db);
+    const sourceService = new SourceAnchorService(new SourceAnchorRepository(database.db), bookRepository);
+    const now = new Date().toISOString();
+    bookRepository.create({ id: "book-1", title: "Book A", fingerprint: "fixture-book", fileName: "book.pdf", managedPath: "/tmp/book.pdf", pageCount: 10, createdAt: now, updatedAt: now });
+    const sourceAnchor = sourceService.createUserSelection("book-1", { pageStart: 1, pageEnd: 1, quoteRaw: "evidence", quoteNormalized: "evidence", rects: [{ pageIndex: 1, x: 0, y: 0, width: 10, height: 10 }], origin: "user-selection", documentNodeIds: [] });
+    const workspaceService = new WorkspaceService(new WorkspaceRepository(database.db), bookRepository, sourceService);
+    const workspace = workspaceService.create({ name: "Fixtures", bookId: "book-1" });
+    const service = new MapService(new MapRepository(database.db), exploreRepository, workspaceService);
+
+    const fixtures: Array<{ semanticKind: MapDraft["semanticKind"]; expectedKind: string; primary: MapDraft["primary"] }> = [
+      { semanticKind: "definition", expectedKind: "definition", primary: { type: "definition", term: "Cache", definition: "Stored reusable data", keyPoints: ["Fast reuse"], sourceRefs: ["S1"] } },
+      { semanticKind: "comparison", expectedKind: "table", primary: { type: "table", title: "A vs B", columns: ["Aspect", "A", "B"], rows: [["Mode", "x", "y"]], sourceRefs: ["S1"] } },
+      { semanticKind: "causal", expectedKind: "diagram", primary: { type: "flow", title: "Cause", direction: "LR", nodes: [{ id: "a", label: "A" }, { id: "b", label: "B" }], edges: [{ source: "a", target: "b" }], sourceRefs: ["S1"] } },
+      { semanticKind: "process", expectedKind: "diagram", primary: { type: "flow", title: "Process", direction: "LR", nodes: [{ id: "a", label: "A" }, { id: "b", label: "B" }], edges: [{ source: "a", target: "b" }], sourceRefs: ["S1"] } },
+      { semanticKind: "hierarchy", expectedKind: "diagram", primary: { type: "hierarchy", title: "Tree", nodes: [{ id: "root", label: "Root", parentId: null }, { id: "child", label: "Child", parentId: "root" }], sourceRefs: ["S1"] } },
+      { semanticKind: "timeline", expectedKind: "diagram", primary: { type: "timeline", title: "History", items: [{ label: "Start", time: "2024" }, { label: "Now", time: "2026" }], sourceRefs: ["S1"] } },
+      { semanticKind: "quantitative", expectedKind: "table", primary: { type: "table", title: "Few values", columns: ["Item", "Value"], rows: [["A", "1"], ["B", "2"]], sourceRefs: ["S1"] } },
+      { semanticKind: "quantitative", expectedKind: "chart", primary: { type: "chart", chartType: "line", title: "Trend", dataNature: "source", xKey: "t", series: [{ dataKey: "v", label: "Value" }], data: [{ t: "1", v: 1 }, { t: "2", v: 2 }], sourceRefs: ["S1"] } },
+    ];
+
+    fixtures.forEach((fixture, index) => {
+      const thread = exploreRepository.createThread({
+        id: `fixture-thread-${index}`, workspaceId: workspace.id, originBookId: "book-1", codexThreadId: `codex-thread-${index}`,
+        model: "gpt-5.6-sol", contextToolsVersion: 5, title: "Fixture", conversationSummary: "", createdAt: now, updatedAt: now,
+      });
+      const message = exploreRepository.createMessage({
+        id: `fixture-message-${index}`, threadId: thread.id, role: "assistant", content: `Answer [S1] ${index}`,
+        status: "completed", codexTurnId: `fixture-turn-${index}`, createdAt: now, updatedAt: now,
+      });
+      exploreRepository.attachSources(message.id, [{ sourceAnchorId: sourceAnchor.id, sourceLabel: "S1", sourceOrder: 0, includedText: "evidence", truncated: false }]);
+      const created = service.createFromMessage({ messageId: message.id }, {
+        semanticKind: fixture.semanticKind,
+        title: `Fixture ${index}`,
+        conciseExplanation: "Structured",
+        primary: fixture.primary,
+        supportingBlocks: [],
+        sourceRefs: ["S1"],
+      });
+      expect(created.artifact.semanticKind).toBe(fixture.semanticKind);
+      expect(created.artifact.primaryBlockId).toBe(created.artifact.blocks[0]?.id);
+      expect(created.artifact.blocks[0]?.kind).toBe(fixture.expectedKind);
+      expect(created.artifact.blocks[0]?.sourceRefs).toEqual([{ label: "S1", sourceAnchorId: sourceAnchor.id }]);
+    });
+  });
+
 });

@@ -86,8 +86,8 @@ export class ContextBuilder {
       `- 用語・概念・比較対象がWorkspace内の別PDFや別箇所にある可能性が高い場合は workspace_search を使い、候補を workspace_read_blocks で実際に読んでから回答してください。検索候補だけを引用してはいけません。\n` +
       `- 複数PDFを比較する質問では、明示Sourceが1冊だけでも必要ならWorkspace内の別PDFを探索してください。\n` +
       `- 追加探索は質問に関係する範囲に限定し、追加で読んだ本文にはツールが付与した S# を使ってください。\n` +
-      `- 図解が理解を改善する場合は \`\`\`mermaid または \`\`\`lensmap-viz の fenced block を使えます。図解が不要なら通常の文章を優先してください。\n` +
-      `- lensmap-viz は JSON で、type は comparison / flow / hierarchy / timeline / matrix / callout / chart のいずれかに限定し、根拠として使った S# を sourceRefs 配列に入れてください。\n` +
+      `- 回答を完成させる前に lensmap-map-composer Skillの判断規則を使い、lensmap_compose_map を1回だけ呼んで、このturnの理解をstructured Map Draftとして提出してください。\n` +
+      `- Mapは図である必要はありません。definitionや小規模comparisonは文章/表を優先し、不要なdiagramやchartを増やさないでください。Mermaidはstructured schemaで自然に表せない場合だけ使えます。\n` +
       `- chart の dataNature は、文書記載値なら source、文書値から計算した値なら derived、説明用仮想値なら illustrative としてください。\n` +
       (hasVisual ? `- このTurnにはVisual Source画像が添付されています。画像を実際に確認してから回答してください。\n` : "") +
       `\n## 質問\n${question.trim()}\n\n` +

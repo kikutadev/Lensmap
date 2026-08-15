@@ -8,6 +8,13 @@
       "when": 1786735234091,
       "tag": "0000_early_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1786803052892,
+      "tag": "0001_lazy_stone_men",
+      "breakpoints": true
     }
   ]
 }

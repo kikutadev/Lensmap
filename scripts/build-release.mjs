@@ -106,6 +106,7 @@ function copyPublicMetadata() {
 function copyApplicationPayload() {
   const required = [
     ["apps/server/dist", "apps/server/dist"],
+    ["apps/server/skills", "apps/server/skills"],
     ["apps/server/drizzle", "apps/server/drizzle"],
     ["apps/chrome-extension/.output/chrome-mv3", "apps/chrome-extension/.output/chrome-mv3"],
     ["scripts/lensmap-server.mjs", "scripts/lensmap-server.mjs"],

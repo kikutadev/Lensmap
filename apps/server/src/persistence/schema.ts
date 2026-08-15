@@ -165,13 +165,15 @@ export const mapVersions = sqliteTable("map_versions", {
   version: integer("version").notNull(),
   title: text("title"),
   conciseExplanation: text("concise_explanation").notNull().default(""),
+  semanticKind: text("semantic_kind", { enum: ["definition", "comparison", "causal", "process", "hierarchy", "timeline", "quantitative", "synthesis"] }).notNull().default("synthesis"),
+  primaryBlockId: text("primary_block_id"),
   createdAt: text("created_at").notNull(),
 });
 
 export const mapBlocks = sqliteTable("map_blocks", {
   id: text("id").primaryKey(),
   versionId: text("version_id").notNull().references(() => mapVersions.id, { onDelete: "cascade" }),
-  kind: text("kind", { enum: ["narrative", "callout", "table", "diagram", "chart", "visual-reference"] }).notNull(),
+  kind: text("kind", { enum: ["definition", "narrative", "callout", "table", "diagram", "chart", "visual-reference"] }).notNull(),
   blockOrder: integer("block_order").notNull(),
   contentJson: text("content_json").notNull(),
   groundingKind: text("grounding_kind", { enum: ["source-backed", "derived", "ai-explanation"] }).notNull(),
