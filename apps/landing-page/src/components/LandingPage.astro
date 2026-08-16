@@ -131,15 +131,25 @@ const repoUrl = "https://github.com/kikutadev/Lensmap";
         </div>
 
         <figure class="real-map-figure">
-          <img
-            src={isJa ? "/product/pmbok-comparison-ja.png" : "/product/pmbok-comparison-en.png"}
-            alt={copy.mapExampleAlt}
-            width="1296"
-            height={isJa ? "1186" : "1242"}
-            loading="lazy"
-            decoding="async"
-          />
-          <figcaption>{copy.mapExampleCaption}</figcaption>
+          <div
+            class="real-map-scroll"
+            tabindex="0"
+            role="group"
+            aria-label={isJa ? "実際のMap。スマートフォンでは横にスクロールできます。" : "Actual Map. Scroll horizontally on smaller screens."}
+          >
+            <img
+              src={isJa ? "/product/pmbok-comparison-ja.png" : "/product/pmbok-comparison-en.png"}
+              alt={copy.mapExampleAlt}
+              width="1296"
+              height={isJa ? "1186" : "1242"}
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            {copy.mapExampleCaption}
+            <span class="map-swipe-hint">{isJa ? "横にスワイプして実Mapを見る →" : "Swipe to inspect the actual Map →"}</span>
+          </figcaption>
         </figure>
       </div>
 

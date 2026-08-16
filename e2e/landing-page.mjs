@@ -35,7 +35,9 @@ try {
   try {
     const cases = [
       { name: "desktop-light-ja", url: "/", width: 1440, height: 1000, scheme: "light" },
-      { name: "mobile-light-ja", url: "/", width: 390, height: 844, scheme: "light" },
+      { name: "mobile-compact-light-ja", url: "/", width: 320, height: 720, scheme: "light", mobile: true },
+      { name: "mobile-light-ja", url: "/", width: 390, height: 844, scheme: "light", mobile: true },
+      { name: "mobile-wide-dark-en", url: "/en/", width: 430, height: 932, scheme: "dark", mobile: true },
       { name: "desktop-dark-en", url: "/en/", width: 1440, height: 1000, scheme: "dark" },
     ];
 
@@ -92,6 +94,28 @@ try {
           hasCodexSection: Boolean(document.querySelector(".codex-section")),
           installSteps: document.querySelectorAll(".install-steps > li").length,
           faqItems: document.querySelectorAll(".faq-list > details").length,
+          mobileLayout: (() => {
+            const hero = document.querySelector(".hero");
+            const principles = document.querySelector(".principles");
+            const codex = document.querySelector(".codex-architecture");
+            const install = document.querySelector(".install-steps");
+            const footer = document.querySelector(".site-footer");
+            const navLink = document.querySelector(".site-nav a:not(.language-link)");
+            const mapScroller = document.querySelector(".real-map-scroll");
+            if (!(hero && principles && codex && install && footer && mapScroller)) return null;
+            const columns = (element) => getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length;
+            return {
+              heroColumns: columns(hero),
+              principleColumns: columns(principles),
+              codexColumns: columns(codex),
+              installColumns: columns(install),
+              footerColumns: columns(footer),
+              desktopNavHidden: navLink ? getComputedStyle(navLink).display === "none" : true,
+              mapOverflowX: getComputedStyle(mapScroller).overflowX,
+              mapScrollWidth: mapScroller.scrollWidth,
+              mapClientWidth: mapScroller.clientWidth,
+            };
+          })(),
         };
       });
 
@@ -114,6 +138,17 @@ try {
       assert(result.hasCodexSection, `${testCase.name}: Codex architecture section is missing`);
       assert(result.installSteps === 4, `${testCase.name}: expected 4 installation steps, got ${result.installSteps}`);
       assert(result.faqItems >= 5, `${testCase.name}: FAQ is incomplete`);
+      if (testCase.mobile) {
+        assert(result.mobileLayout, `${testCase.name}: mobile layout metrics are unavailable`);
+        assert(result.mobileLayout.heroColumns === 1, `${testCase.name}: hero did not collapse to one column`);
+        assert(result.mobileLayout.principleColumns === 1, `${testCase.name}: principles did not collapse to one column`);
+        assert(result.mobileLayout.codexColumns === 1, `${testCase.name}: Codex architecture did not collapse to one column`);
+        assert(result.mobileLayout.installColumns === 1, `${testCase.name}: install steps did not collapse to one column`);
+        assert(result.mobileLayout.footerColumns === 1, `${testCase.name}: footer did not collapse to one column`);
+        assert(result.mobileLayout.desktopNavHidden, `${testCase.name}: desktop navigation remains visible on mobile`);
+        assert(["auto", "scroll"].includes(result.mobileLayout.mapOverflowX), `${testCase.name}: real Map is not horizontally scrollable`);
+        assert(result.mobileLayout.mapScrollWidth > result.mobileLayout.mapClientWidth, `${testCase.name}: real Map was shrunk instead of preserving readable scroll width`);
+      }
       assert(
         testCase.url === "/" ? result.bodyText.includes("AIとのチャットは、あくまでサブ") : result.bodyText.includes("AI chat is deliberately secondary"),
         `${testCase.name}: chat-as-scratchpad positioning is missing`,
