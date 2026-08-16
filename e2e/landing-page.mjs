@@ -10,6 +10,7 @@ const astroCli = path.join(landingRoot, "node_modules/astro/bin/astro.mjs");
 const artifacts = path.join(repoRoot, ".e2e-artifacts/landing-page");
 const port = Number(process.env.LENSMAP_LP_TEST_PORT ?? 4322);
 const configuredOrigin = process.env.LENSMAP_LP_ORIGIN?.replace(/\/$/, "");
+const captureFullPage = process.env.LENSMAP_LP_FULL_PAGE === "1";
 const origin = configuredOrigin ?? `http://127.0.0.1:${port}`;
 const chromePath = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
@@ -120,7 +121,7 @@ try {
       assert(consoleErrors.length === 0, `${testCase.name}: console errors: ${consoleErrors.join(" | ")}`);
 
       const suffix = configuredOrigin ? "-production" : "";
-      await page.screenshot({ path: path.join(artifacts, `${testCase.name}${suffix}.png`), fullPage: true });
+      await page.screenshot({ path: path.join(artifacts, `${testCase.name}${suffix}.png`), fullPage: captureFullPage });
       console.log(`[lp-e2e] ${configuredOrigin ? "production " : ""}${testCase.name}: ${result.title}`);
       await page.close();
     }
@@ -135,7 +136,7 @@ try {
   }
 }
 
-console.log(`[lp-e2e] visual artifacts: ${path.relative(repoRoot, artifacts)}`);
+console.log(`[lp-e2e] visual artifacts: ${path.relative(repoRoot, artifacts)} (${captureFullPage ? "full-page" : "viewport"})`);
 
 /** Waits until either Astro Preview or the configured production origin is reachable. */
 async function waitForServer(url) {
