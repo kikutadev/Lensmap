@@ -80,7 +80,14 @@ try {
           canonical: document.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? "",
           ogImage: document.querySelector('meta[property="og:image"]')?.getAttribute("content") ?? "",
           bodyText: document.body.textContent ?? "",
-          hasMapAnatomy: Boolean(document.querySelector(".map-anatomy")),
+          hasRealMapExample: Boolean(document.querySelector(".real-map-example")),
+          hasActualHeroMap: Boolean(document.querySelector(".actual-map-shot img")),
+          realMap: (() => {
+            const image = document.querySelector(".real-map-figure img");
+            return image instanceof HTMLImageElement ? { src: image.src, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight } : null;
+          })(),
+          heroMapSrc: document.querySelector(".actual-map-shot img")?.getAttribute("src") ?? "",
+          mapSourceHref: document.querySelector(".map-source-attribution a")?.getAttribute("href") ?? "",
           hasCodexSection: Boolean(document.querySelector(".codex-section")),
           installSteps: document.querySelectorAll(".install-steps > li").length,
           faqItems: document.querySelectorAll(".faq-list > details").length,
@@ -95,7 +102,14 @@ try {
       assert(result.ogImage.startsWith("https://lensmap.kikuta.dev/og/"), `${testCase.name}: invalid OG image ${result.ogImage}`);
       assert(!result.bodyText.includes("BlueGate"), `${testCase.name}: internal E2E fixture name BlueGate leaked into the public LP`);
       assert(result.bodyText.includes("Codex App Server"), `${testCase.name}: Codex App Server is not explained`);
-      assert(result.hasMapAnatomy, `${testCase.name}: Map anatomy is missing`);
+      assert(result.hasRealMapExample, `${testCase.name}: real Map example is missing`);
+      assert(result.hasActualHeroMap, `${testCase.name}: actual Map is missing from the hero`);
+      assert(result.realMap?.naturalWidth >= 1200, `${testCase.name}: actual Map image is too low resolution: ${result.realMap?.naturalWidth ?? 0}px`);
+      const expectedMapAsset = testCase.url === "/" ? "/product/pmbok-comparison-ja.png" : "/product/pmbok-comparison-en.png";
+      assert(result.realMap?.src.endsWith(expectedMapAsset), `${testCase.name}: wrong localized Map asset: ${result.realMap?.src ?? "missing"}`);
+      assert(result.heroMapSrc === expectedMapAsset, `${testCase.name}: hero uses the wrong localized Map asset: ${result.heroMapSrc}`);
+      assert(result.mapSourceHref === "https://pmbok.guide/", `${testCase.name}: PMBOK example attribution link is missing`);
+      assert(!result.bodyText.includes("Cache invalidation"), `${testCase.name}: obsolete cache-invalidation marketing fixture leaked into the LP`);
       assert(result.hasCodexSection, `${testCase.name}: Codex architecture section is missing`);
       assert(result.installSteps === 4, `${testCase.name}: expected 4 installation steps, got ${result.installSteps}`);
       assert(result.faqItems >= 5, `${testCase.name}: FAQ is incomplete`);
